@@ -6,6 +6,7 @@ nyuresults/*
 !nyuresults/*.py
 onnx/*
 !onnx/.gitkeep
+!onnx/*.py
 results/*
 !results/.gitkeep
 test_res/*
