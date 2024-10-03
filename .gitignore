@@ -1,3 +1,18 @@
+# dir
+checkpoints/*
+!checkpoints/.gitkeep
+nyuresults/*
+!nyuresults/.gitkeep
+onnx/*
+!onnx/.gitkeep
+results/*
+!results/.gitkeep
+test_res/*
+!test_res/.gitkeep
+tmp/*
+!tmp/.gitkeep
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
