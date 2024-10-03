@@ -12,7 +12,6 @@ test_res/*
 tmp/*
 !tmp/.gitkeep
 
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
