@@ -2,6 +2,29 @@
 
 <img src="./src_imgs/color_output.png" alt="0000000017" style="zoom:70%;" />
 
+## Get Started
+
+The following codes are all run on ccv
+
+Load useful modules
+
+```bash
+module load cuda
+module load miniconda3/23.11.0s
+source /oscar/runtime/software/external/miniconda3/23.11.0/etc/profile.d/conda.sh
+```
+
+Create conda env
+
+```bash
+git clone https://github.com/lllllcf/Realtime-Depth-Estimation-Nconv.git
+cd Realtime-Depth-Estimation-Nconv
+conda env create -f environment.yml
+conda activate bp3
+```
+
+
+
 ## Dataset
 
 + You can find preprocessed KITTI and NYUv2 dataset, as well as data collected from our spot in `/oscar/data/jtompki1/cli277`.
