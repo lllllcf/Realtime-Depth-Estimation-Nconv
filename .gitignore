@@ -3,6 +3,7 @@ checkpoints/*
 !checkpoints/.gitkeep
 nyuresults/*
 !nyuresults/.gitkeep
+!nyuresults/*.py
 onnx/*
 !onnx/.gitkeep
 results/*
