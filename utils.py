@@ -30,7 +30,7 @@ def get_performance(model, val_loader, device_str):
         gt = data['gt'].to(device)
         k = data['k'].to(device)
 
-        estimated_depth, _, _, _ = model(rgb, depth, rgb, depth, rgb, depth, rgb, depth)
+        estimated_depth = model(rgb, depth)
         loss= calculate_loss(estimated_depth[0, :, :, :], gt[0, :, :, :])
         loss_all.append(loss.item())
 
