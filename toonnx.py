@@ -19,11 +19,11 @@ import copy
 import matplotlib.pyplot as plt
 from models.newcnn import NEWCNN
 # from models.smallModel import SMALL_STEP1, SMALL_STEP2, SMALL_FINAL, SMALL_FINAL_median
-from models.smallModelFourInput import SMALL_STEP2
+from models.a1005largerModelNewLoss import LARGER_STEP2
 
-model = SMALL_STEP2()
+model = LARGER_STEP2()
 model.eval()
-checkpoint = torch.load("./checkpoints/epoch=1000.checkpoint.pth.tar")
+checkpoint = torch.load("./checkpoints/largerstep2.pth.tar")
 
 state_dict = checkpoint["state_dict"]
 
@@ -54,29 +54,22 @@ dummy_k = torch.randn(1, 3, 3, device=device_str)            # Adjust the size a
 # onnx.checker.check_model(onnx_model)
 
 # Export the model
-onnx_model_path = "./4camera_top20_45Smallmodel.onnx"
+onnx_model_path = "./4camera_top20_45LargeModel.onnx"
 torch.onnx.export(
     model,  # Pass the actual model if using nn.DataParallel
-    (dummy_rgb, dummy_depth, dummy_rgb, dummy_depth, dummy_rgb, dummy_depth, dummy_rgb, dummy_depth),  # Pass the inputs as a tuple
+    (dummy_rgb, dummy_depth, dummy_rgb, dummy_depth),  # Pass the inputs as a tuple
     onnx_model_path,
     export_params=True,
     opset_version=17,
     do_constant_folding=True,
-    input_names=['rgb_0', 'depth_0', 'rgb_1', 'depth_1', 'rgb_2', 'depth_2', 'rgb_3', 'depth_3'],
-    output_names=['output_depth_0', 'output_depth_1', 'output_depth_2', 'output_depth_3'],
+    input_names=['rgb_0', 'depth_0', 'rgb_1', 'depth_1'],
+    output_names=['output_depth_0', 'output_depth_1'],
     dynamic_axes={'rgb_0': {0: 'batch_size'}, 
     'depth_0': {0: 'batch_size'}, 
     'rgb_1': {0: 'batch_size'}, 
     'depth_1': {0: 'batch_size'}, 
-    'rgb_2': {0: 'batch_size'}, 
-    'depth_2': {0: 'batch_size'}, 
-    'rgb_3': {0: 'batch_size'}, 
-    'depth_3': {0: 'batch_size'}, 
-    # 'k': {0: 'batch_size'}, 
     'output_depth_0': {0: 'batch_size'},
-    'output_depth_1': {0: 'batch_size'},
-    'output_depth_2': {0: 'batch_size'},
-    'output_depth_3': {0: 'batch_size'}
+    'output_depth_1': {0: 'batch_size'}
     }
 )
 

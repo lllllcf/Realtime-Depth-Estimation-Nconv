@@ -17,7 +17,7 @@ from models.step2cutmargin import STEP2
 from models.nocudaaddcspnwithconfidence import STEP3
 # from models.smallModel import SMALL_STEP1, SMALL_STEP2
 
-from models.smallModelTwoInput import SMALL_STEP2
+from models.a1005largerModelNewLoss import LARGER_STEP2
 
 
 # test loader
@@ -29,9 +29,9 @@ print('Test size: ' + str(len(test_loader)))
 
 device = torch.device('cuda')
 # best_model = nvonvDNET() # BilateralMLP()
-best_model = SMALL_STEP2()
+best_model = LARGER_STEP2()
 # checkpoint = torch.load("./checkpoints/buc50norelu.pth.tar")
-checkpoint = torch.load("./checkpoints/epoch=100.checkpoint.pth.tar")
+checkpoint = torch.load("./checkpoints/largerstep2.pth.tar")
 
 state_dict = checkpoint["state_dict"]
 
@@ -66,7 +66,6 @@ for batch, data in enumerate(test_loader):
     k = data['k'].to(device)
 
     
-
     # r = 10
     # if (batch == 0):
     #     r = 1

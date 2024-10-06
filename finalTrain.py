@@ -3,7 +3,7 @@ from models.BPNet import BilateralMLP, nvonvDNET
 # from models.newcnn import NEWCNN
 # from models.nocudaaddcspnwithconfidence import SIMPLE, STEP1, STEP2, STEP3
 # from models.smallModel import SMALL_STEP1, SMALL_STEP2, SMALL_STEP3
-from models.smallModelFourInput import SMALL_STEP2, SMALL_STEP1
+from models.a1005largerModelNewLoss import LARGER_STEP1, LARGER_STEP2
 from utils import *
 from torch import nn
 import numpy as np
@@ -54,7 +54,7 @@ def train_model(model, train_loader, val_loader, num_epoch, parameter, patience,
 
             model.train()
             optim.zero_grad()
-            estimated_depth, _, _, _ = model(rgb, depth, rgb, depth, rgb, depth, rgb, depth)
+            estimated_depth = model(rgb, depth, rgb, depth)
 
             loss = calculate_loss(estimated_depth[0, :, :, :], gt[0, :, :, :])
             loss.requires_grad_().backward()
@@ -103,19 +103,19 @@ def train_model(model, train_loader, val_loader, num_epoch, parameter, patience,
     
 def get_hyper_parameters(lr, wd):
     _para_list = [{"optim_type": 'adam', 'lr': lr, "weight_decay": wd, "store_img_training": True}]
-    _num_epoch = 50
+    _num_epoch = 100
     _patience = 5
     _device = 'cuda'
     return _para_list, _num_epoch, _patience, _device
 
 
 best_val_loss = float('inf')
-best_model = SMALL_STEP2()
+best_model = LARGER_STEP2()
 best_lr = 0
 best_wd = 0
 final_stats = {}
-for lr in [1e-3]:
-    for wd in [1e-5]:
+for lr in [1e-4]:
+    for wd in [1e-7]:
         train_dataset = DataLoader_NYU('/oscar/data/jtompki1/cli277/nyuv2/nyuv2', 'train', True, True)
         train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
         val_dataset = DataLoader_NYU('/oscar/data/jtompki1/cli277/nyuv2/nyuv2', 'val', True, True)
@@ -126,7 +126,7 @@ for lr in [1e-3]:
         print('Learning Rate: ' + str(lr))
         print('Weight Decay: ' + str(wd))  
 
-        model = SMALL_STEP2()
+        model = LARGER_STEP2()
         model = nn.DataParallel(model)
         para_list, num_epoch, patience, device_str = get_hyper_parameters(lr, wd)
 
@@ -146,4 +146,4 @@ print("Best learning rate(ALL): {:.4f}".format(best_lr))
 print("Best weight decay(ALL): {:.4f}".format(best_wd))
 print('---------------------------------------------------------------')
 print('------------------------ Training Done ------------------------')
-save_checkpoint(best_model, 1000, "./checkpoints", final_stats)
+save_checkpoint(best_model, 1666, "./checkpoints", final_stats)
