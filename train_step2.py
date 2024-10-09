@@ -1,9 +1,4 @@
 from dataset.nyuloader import *
-from models.BPNet import BilateralMLP, nvonvDNET
-# from models.newcnn import NEWCNN
-# from models.nocudaaddcspnwithconfidence import SIMPLE, STEP1, STEP2, STEP3
-# from models.smallModel import SMALL_STEP1, SMALL_STEP2, SMALL_STEP3
-from models.a1006clean_GradientMatching import LARGER_STEP1
 from models.a1005largerModelNewLoss1 import LARGER_STEP2
 from utils import *
 from torch import nn

@@ -1,5 +1,4 @@
 from dataset.kittiloader import *
-from models.BPNet import BilateralMLP
 from torch import nn
 import numpy as np
 import torch.optim as optimizer
@@ -37,7 +36,7 @@ def get_performance(model, val_loader, device_str):
     val_loss = sum(loss_all) / len(loss_all)
     return val_loss
 
-def save_checkpoint(model, epoch, checkpoint_dir, stats):
+def save_checkpoint(model, epoch, checkpoint_dir, stats, name):
     """Save a checkpoint file to `checkpoint_dir`."""
     state = {
         "epoch": epoch,
@@ -45,7 +44,7 @@ def save_checkpoint(model, epoch, checkpoint_dir, stats):
         "stats": stats,
     }
 
-    filename = os.path.join(checkpoint_dir, "epoch={}.checkpoint.pth.tar".format(epoch))
+    filename = os.path.join(checkpoint_dir, "{}.pth.tar".format(name))
     torch.save(state, filename)
 
 def get_optimizer(net, optim_type, lr, weight_decay):

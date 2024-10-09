@@ -1,9 +1,5 @@
 from dataset.nyuloader import *
-from models.BPNet import BilateralMLP, nvonvDNET
-# from models.newcnn import NEWCNN
-# from models.nocudaaddcspnwithconfidence import SIMPLE, STEP1, STEP2, STEP3
-# from models.smallModel import SMALL_STEP1, SMALL_STEP2, SMALL_STEP3
-from models.a1006clean_GradientMatching import LARGER_STEP1, LARGER_STEP2
+from models.step1 import SETP1_NCONV
 from utils import *
 from torch import nn
 import numpy as np
@@ -14,6 +10,8 @@ import torch.nn.functional as F
 import time
 import copy
 import matplotlib.pyplot as plt
+
+output_name = "test"
 
 def train_model(model, train_loader, val_loader, num_epoch, parameter, patience, device_str):
     device = torch.device(device_str if device_str == 'cuda' and torch.cuda.is_available() else 'cpu')
@@ -103,14 +101,14 @@ def train_model(model, train_loader, val_loader, num_epoch, parameter, patience,
     
 def get_hyper_parameters(lr, wd):
     _para_list = [{"optim_type": 'adam', 'lr': lr, "weight_decay": wd, "store_img_training": True}]
-    _num_epoch = 100
+    _num_epoch = 2
     _patience = 5
     _device = 'cuda'
     return _para_list, _num_epoch, _patience, _device
 
-
+num_epoch = 0
 best_val_loss = float('inf')
-best_model = LARGER_STEP1()
+best_model = SETP1_NCONV()
 best_lr = 0
 best_wd = 0
 final_stats = {}
@@ -126,7 +124,7 @@ for lr in [1e-4]:
         print('Learning Rate: ' + str(lr))
         print('Weight Decay: ' + str(wd))  
 
-        model = LARGER_STEP1()
+        model = SETP1_NCONV()
         model = nn.DataParallel(model)
         para_list, num_epoch, patience, device_str = get_hyper_parameters(lr, wd)
 
@@ -146,4 +144,4 @@ print("Best learning rate(ALL): {:.4f}".format(best_lr))
 print("Best weight decay(ALL): {:.4f}".format(best_wd))
 print('---------------------------------------------------------------')
 print('------------------------ Training Done ------------------------')
-save_checkpoint(best_model, 12166, "./checkpoints", final_stats)
+save_checkpoint(best_model, num_epoch, "./checkpoints", final_stats, output_name)
