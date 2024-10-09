@@ -45,11 +45,17 @@ class SETP2_BP_TRAIN(nn.Module):
         self.rgb_encoder3 = RGBEncoder(64, 64, 2)
         self.rgb_encoder4 = RGBEncoder(64, 64, 2)
 
-        self.fuse0 = FusionResolution0(64, 16)
-        self.fuse1 = FusionResolutionBlock(64, 64, 8)
-        self.fuse2 = FusionResolutionBlock(64, 32, 4)
-        self.fuse3 = FusionResolutionBlock(32, 32, 2)
-        self.fuse4 = FusionResolutionBlock(32, 32, 1)
+        self.rgb_encoder0 = RGBEncoder(3, 32, 1)
+        self.rgb_encoder1 = RGBEncoder(32, 64, 2)
+        self.rgb_encoder2 = RGBEncoder(64, 64, 2)
+        self.rgb_encoder3 = RGBEncoder(64, 64, 2)
+        # self.rgb_encoder4 = RGBEncoder(64, 64, 2)
+
+        self.fuse0 = FusionResolution0(64,8)
+        self.fuse1 = FusionResolutionBlock(64, 64, 4)
+        self.fuse2 = FusionResolutionBlock(64, 32, 2)
+        self.fuse3 = FusionResolutionBlock(32, 32, 1)
+        # self.fuse4 = FusionResolutionBlock(32, 32, 1)
             
     def forward(self, rgb0, depth0, rgb1, depth1): 
         
@@ -60,16 +66,15 @@ class SETP2_BP_TRAIN(nn.Module):
         rgb1 = self.rgb_encoder1(rgb0) # 480 -> 240
         rgb2 = self.rgb_encoder2(rgb1) # 240 -> 120
         rgb3 = self.rgb_encoder3(rgb2) # 120 -> 60
-        rgb4 = self.rgb_encoder4(rgb3) # 60 -> 30
+        # rgb4 = self.rgb_encoder4(rgb3) # 60 -> 30
 
-        out_fusion0, out_depth0 = self.fuse0(rgb4, sparse)
-        out_fusion1, out_depth1 = self.fuse1(rgb3, sparse, out_fusion0, out_depth0)
-        out_fusion2, out_depth2 = self.fuse2(rgb2, sparse, out_fusion1, out_depth1)
-        out_fusion3, out_depth3 = self.fuse3(rgb1, sparse, out_fusion2, out_depth2)
-        out_fusion4, out_depth4 = self.fuse4(rgb0, sparse, out_fusion3, out_depth3)
+        out_fusion0, out_depth0 = self.fuse0(rgb3, sparse)
+        out_fusion1, out_depth1 = self.fuse1(rgb2, sparse, out_fusion0, out_depth0)
+        out_fusion2, out_depth2 = self.fuse2(rgb1, sparse, out_fusion1, out_depth1)
+        out_fusion3, out_depth3 = self.fuse3(rgb0, sparse, out_fusion2, out_depth2)
+        # out_fusion4, out_depth4 = self.fuse4(rgb0, sparse, out_fusion3, out_depth3)
 
-
-        return [out_depth0[0:1], out_depth1[0:1], out_depth2[0:1], out_depth3[0:1], out_depth4[0:1]], [out_depth0[1:2], out_depth1[1:2], out_depth2[1:2], out_depth3[1:2], out_depth4[1:2]]
+        return [out_depth0[0:1], out_depth1[0:1], out_depth2[0:1], out_depth3[0:1]], [out_depth0[1:2], out_depth1[1:2], out_depth2[1:2], out_depth3[1:2]]
 
 
 class SETP2_BP_EXPORT(nn.Module):
@@ -79,17 +84,23 @@ class SETP2_BP_EXPORT(nn.Module):
 
         self.step1 = SETP1_NCONV()
 
-        self.rgb_encoder0 = RGBEncoder(3, 32, 1)
+       self.rgb_encoder0 = RGBEncoder(3, 32, 1)
         self.rgb_encoder1 = RGBEncoder(32, 32, 2)
         self.rgb_encoder2 = RGBEncoder(32, 64, 2)
         self.rgb_encoder3 = RGBEncoder(64, 64, 2)
         self.rgb_encoder4 = RGBEncoder(64, 64, 2)
 
-        self.fuse0 = FusionResolution0(64, 16)
-        self.fuse1 = FusionResolutionBlock(64, 64, 8)
-        self.fuse2 = FusionResolutionBlock(64, 32, 4)
-        self.fuse3 = FusionResolutionBlock(32, 32, 2)
-        self.fuse4 = FusionResolutionBlock(32, 32, 1)
+        self.rgb_encoder0 = RGBEncoder(3, 32, 1)
+        self.rgb_encoder1 = RGBEncoder(32, 64, 2)
+        self.rgb_encoder2 = RGBEncoder(64, 64, 2)
+        self.rgb_encoder3 = RGBEncoder(64, 64, 2)
+        # self.rgb_encoder4 = RGBEncoder(64, 64, 2)
+
+        self.fuse0 = FusionResolution0(64,8)
+        self.fuse1 = FusionResolutionBlock(64, 64, 4)
+        self.fuse2 = FusionResolutionBlock(64, 32, 2)
+        self.fuse3 = FusionResolutionBlock(32, 32, 1)
+        # self.fuse4 = FusionResolutionBlock(32, 32, 1)
             
     def forward(self, rgb0, depth0, rgb1, depth1): 
         
@@ -100,19 +111,19 @@ class SETP2_BP_EXPORT(nn.Module):
         rgb1 = self.rgb_encoder1(rgb0) # 480 -> 240
         rgb2 = self.rgb_encoder2(rgb1) # 240 -> 120
         rgb3 = self.rgb_encoder3(rgb2) # 120 -> 60
-        rgb4 = self.rgb_encoder4(rgb3) # 60 -> 30
+        # rgb4 = self.rgb_encoder4(rgb3) # 60 -> 30
 
-        out_fusion0, out_depth0 = self.fuse0(rgb4, sparse)
-        out_fusion1, out_depth1 = self.fuse1(rgb3, sparse, out_fusion0, out_depth0)
-        out_fusion2, out_depth2 = self.fuse2(rgb2, sparse, out_fusion1, out_depth1)
-        out_fusion3, out_depth3 = self.fuse3(rgb1, sparse, out_fusion2, out_depth2)
-        out_fusion4, out_depth4 = self.fuse4(rgb0, sparse, out_fusion3, out_depth3)
+        out_fusion0, out_depth0 = self.fuse0(rgb3, sparse)
+        out_fusion1, out_depth1 = self.fuse1(rgb2, sparse, out_fusion0, out_depth0)
+        out_fusion2, out_depth2 = self.fuse2(rgb1, sparse, out_fusion1, out_depth1)
+        out_fusion3, out_depth3 = self.fuse3(rgb0, sparse, out_fusion2, out_depth2)
+        # out_fusion4, out_depth4 = self.fuse4(rgb0, sparse, out_fusion3, out_depth3)
 
-        out_depth4[:, :, :45, :] = 0
-        out_depth4[:, :, -45:, :] = 0
-        out_depth4[:, :, :, :20] = 0
+        out_depth3[:, :, :45, :] = 0
+        out_depth3[:, :, -45:, :] = 0
+        out_depth3[:, :, :, :20] = 0
         
-        return out_depth4[0:1], out_depth4[1:2]
+        return out_depth3[0:1], out_depth3[1:2]
 
 
 

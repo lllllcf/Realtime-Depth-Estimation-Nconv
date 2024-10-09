@@ -41,7 +41,7 @@ class DNET(nn.Module):
 
         pos_fn = "softplus"
         # pos_fn = None
-        num_channels=16
+        num_channels=8
 
         self.nconv1 = NConv2d(1, num_channels, (5,5), pos_fn, 'p', padding=(2, 2))
         self.nconv2 = NConv2d(num_channels, num_channels, (5,5), pos_fn, 'p', padding=(2, 2))
