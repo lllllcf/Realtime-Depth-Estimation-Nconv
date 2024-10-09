@@ -17,7 +17,7 @@ from models.step2cutmargin import STEP2
 from models.nocudaaddcspnwithconfidence import STEP3
 # from models.smallModel import SMALL_STEP1, SMALL_STEP2
 
-from models.a1005largerModelNewLoss import LARGER_STEP2
+from models.a1005largerModelNewLoss1 import LARGER_STEP2
 
 
 # test loader
@@ -31,7 +31,7 @@ device = torch.device('cuda')
 # best_model = nvonvDNET() # BilateralMLP()
 best_model = LARGER_STEP2()
 # checkpoint = torch.load("./checkpoints/buc50norelu.pth.tar")
-checkpoint = torch.load("./checkpoints/largerstep2.pth.tar")
+checkpoint = torch.load("./checkpoints/true4Resolution1006/step2.pth.tar")
 
 state_dict = checkpoint["state_dict"]
 
@@ -74,6 +74,8 @@ for batch, data in enumerate(test_loader):
     start = time.time()
     for q in range(r):
         estimated_depth, _ = best_model(rgb, depth, rgb, depth)
+
+    print(estimated_depth.shape)
     
     end_time = time.time()
     print(f"Time taken: {end_time - start:.5f} seconds")

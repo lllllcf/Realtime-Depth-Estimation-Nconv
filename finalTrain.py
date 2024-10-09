@@ -3,7 +3,7 @@ from models.BPNet import BilateralMLP, nvonvDNET
 # from models.newcnn import NEWCNN
 # from models.nocudaaddcspnwithconfidence import SIMPLE, STEP1, STEP2, STEP3
 # from models.smallModel import SMALL_STEP1, SMALL_STEP2, SMALL_STEP3
-from models.a1005largerModelNewLoss import LARGER_STEP1, LARGER_STEP2
+from models.a1006clean_GradientMatching import LARGER_STEP1, LARGER_STEP2
 from utils import *
 from torch import nn
 import numpy as np
@@ -54,7 +54,7 @@ def train_model(model, train_loader, val_loader, num_epoch, parameter, patience,
 
             model.train()
             optim.zero_grad()
-            estimated_depth = model(rgb, depth, rgb, depth)
+            estimated_depth = model(depth, depth)
 
             loss = calculate_loss(estimated_depth[0, :, :, :], gt[0, :, :, :])
             loss.requires_grad_().backward()
@@ -110,7 +110,7 @@ def get_hyper_parameters(lr, wd):
 
 
 best_val_loss = float('inf')
-best_model = LARGER_STEP2()
+best_model = LARGER_STEP1()
 best_lr = 0
 best_wd = 0
 final_stats = {}
@@ -126,7 +126,7 @@ for lr in [1e-4]:
         print('Learning Rate: ' + str(lr))
         print('Weight Decay: ' + str(wd))  
 
-        model = LARGER_STEP2()
+        model = LARGER_STEP1()
         model = nn.DataParallel(model)
         para_list, num_epoch, patience, device_str = get_hyper_parameters(lr, wd)
 
@@ -146,4 +146,4 @@ print("Best learning rate(ALL): {:.4f}".format(best_lr))
 print("Best weight decay(ALL): {:.4f}".format(best_wd))
 print('---------------------------------------------------------------')
 print('------------------------ Training Done ------------------------')
-save_checkpoint(best_model, 1666, "./checkpoints", final_stats)
+save_checkpoint(best_model, 12166, "./checkpoints", final_stats)
