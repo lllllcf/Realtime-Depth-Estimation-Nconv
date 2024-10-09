@@ -5,7 +5,6 @@ import numpy as np
 import functools
 from .utils import *
 from torch.cuda.amp import custom_fwd, custom_bwd
-# from .nconv import *
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
 import cv2
@@ -20,24 +19,65 @@ import torch.nn as nn
 from models.step1 import SETP1_NCONV
 
 
-class SETP2_BP(nn.Module):
+class SETP2_BP_TRAIN(nn.Module):
+
+    def __init__(self, step1_checkpoint_name):
+        super().__init__() 
+
+        self.step1 = SETP1_NCONV()
+
+        checkpoint = torch.load("./checkpoints/{}.pth.tar".format(step1_checkpoint_name))
+        state_dict = checkpoint["state_dict"]
+
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            name = k[7:] if k.startswith("module.") else k
+            new_state_dict[name] = v
+        self.step1.load_state_dict(new_state_dict, strict=False)
+        
+        # Disable Training for the unguided module
+        for p in self.step1.parameters():            
+            p.requires_grad=False
+
+        self.rgb_encoder0 = RGBEncoder(3, 32, 1)
+        self.rgb_encoder1 = RGBEncoder(32, 32, 2)
+        self.rgb_encoder2 = RGBEncoder(32, 64, 2)
+        self.rgb_encoder3 = RGBEncoder(64, 64, 2)
+        self.rgb_encoder4 = RGBEncoder(64, 64, 2)
+
+        self.fuse0 = FusionResolution0(64, 16)
+        self.fuse1 = FusionResolutionBlock(64, 64, 8)
+        self.fuse2 = FusionResolutionBlock(64, 32, 4)
+        self.fuse3 = FusionResolutionBlock(32, 32, 2)
+        self.fuse4 = FusionResolutionBlock(32, 32, 1)
+            
+    def forward(self, rgb0, depth0, rgb1, depth1): 
+        
+        sparse = self.step1(depth0, depth1)
+        rgb = torch.cat((rgb0, rgb1), dim=0)
+
+        rgb0 = self.rgb_encoder0(rgb)
+        rgb1 = self.rgb_encoder1(rgb0) # 480 -> 240
+        rgb2 = self.rgb_encoder2(rgb1) # 240 -> 120
+        rgb3 = self.rgb_encoder3(rgb2) # 120 -> 60
+        rgb4 = self.rgb_encoder4(rgb3) # 60 -> 30
+
+        out_fusion0, out_depth0 = self.fuse0(rgb4, sparse)
+        out_fusion1, out_depth1 = self.fuse1(rgb3, sparse, out_fusion0, out_depth0)
+        out_fusion2, out_depth2 = self.fuse2(rgb2, sparse, out_fusion1, out_depth1)
+        out_fusion3, out_depth3 = self.fuse3(rgb1, sparse, out_fusion2, out_depth2)
+        out_fusion4, out_depth4 = self.fuse4(rgb0, sparse, out_fusion3, out_depth3)
+
+
+        return [out_depth0[0:1], out_depth1[0:1], out_depth2[0:1], out_depth3[0:1], out_depth4[0:1]], [out_depth0[1:2], out_depth1[1:2], out_depth2[1:2], out_depth3[1:2], out_depth4[1:2]]
+
+
+class SETP2_BP_EXPORT(nn.Module):
 
     def __init__(self):
         super().__init__() 
 
         self.step1 = SETP1_NCONV()
-        # checkpoint = torch.load("./checkpoints/true4Resolution1006/step1.pth.tar")
-        # state_dict = checkpoint["state_dict"]
-
-        # new_state_dict = {}
-        # for k, v in state_dict.items():
-        #     name = k[7:] if k.startswith("module.") else k
-        #     new_state_dict[name] = v
-        # self.step1.load_state_dict(new_state_dict, strict=False)
-        
-        # # Disable Training for the unguided module
-        # for p in self.step1.parameters():            
-        #     p.requires_grad=False
 
         self.rgb_encoder0 = RGBEncoder(3, 32, 1)
         self.rgb_encoder1 = RGBEncoder(32, 32, 2)
@@ -73,8 +113,6 @@ class SETP2_BP(nn.Module):
         out_depth4[:, :, :, :20] = 0
         
         return out_depth4[0:1], out_depth4[1:2]
-
-        # return [out_depth0[0:1], out_depth1[0:1], out_depth2[0:1], out_depth3[0:1], out_depth4[0:1]], [out_depth0[1:2], out_depth1[1:2], out_depth2[1:2], out_depth3[1:2], out_depth4[1:2]]
 
 
 

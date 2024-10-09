@@ -12,6 +12,9 @@ import copy
 import matplotlib.pyplot as plt
 
 output_name = "test"
+num_train_epoch = 2
+learning_rate = [1e-4]
+weight_decay = [1e-7]
 
 def train_model(model, train_loader, val_loader, num_epoch, parameter, patience, device_str):
     device = torch.device(device_str if device_str == 'cuda' and torch.cuda.is_available() else 'cpu')
@@ -101,19 +104,19 @@ def train_model(model, train_loader, val_loader, num_epoch, parameter, patience,
     
 def get_hyper_parameters(lr, wd):
     _para_list = [{"optim_type": 'adam', 'lr': lr, "weight_decay": wd, "store_img_training": True}]
-    _num_epoch = 2
+    _num_epoch = num_train_epoch
     _patience = 5
     _device = 'cuda'
     return _para_list, _num_epoch, _patience, _device
 
-num_epoch = 0
+
 best_val_loss = float('inf')
 best_model = SETP1_NCONV()
 best_lr = 0
 best_wd = 0
 final_stats = {}
-for lr in [1e-4]:
-    for wd in [1e-7]:
+for lr in learning_rate:
+    for wd in weight_decay:
         train_dataset = DataLoader_NYU('/oscar/data/jtompki1/cli277/nyuv2/nyuv2', 'train', True, True)
         train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
         val_dataset = DataLoader_NYU('/oscar/data/jtompki1/cli277/nyuv2/nyuv2', 'val', True, True)
@@ -144,4 +147,4 @@ print("Best learning rate(ALL): {:.4f}".format(best_lr))
 print("Best weight decay(ALL): {:.4f}".format(best_wd))
 print('---------------------------------------------------------------')
 print('------------------------ Training Done ------------------------')
-save_checkpoint(best_model, num_epoch, "./checkpoints", final_stats, output_name)
+save_checkpoint(best_model, num_train_epoch, "./checkpoints", final_stats, output_name)

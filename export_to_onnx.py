@@ -3,10 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from dataset.nyuloader import *
-from models.BPNet import BilateralMLP, nvonvDNET, CNN
-from models.nocudaaddcspn import SIMPLE
-# from models.step2 import STEP2
-# from models.step2cutmargin import STEP2
+from models.step2 import SETP2_BP_TRAIN
+
 from utils import *
 from torch import nn
 import numpy as np
@@ -17,15 +15,15 @@ import torch.nn.functional as F
 import time
 import copy
 import matplotlib.pyplot as plt
-from models.newcnn import NEWCNN
-# from models.smallModel import SMALL_STEP1, SMALL_STEP2, SMALL_FINAL, SMALL_FINAL_median
-from models.a1005largerModelNewLoss1 import LARGER_STEP2
+from models.step2 import SETP2_BP_EXPORT
 
-# from checkpoints.true4Resolution1006.a1005largerModelNewLoss import LARGER_STEP2
+step2_checkpoint_name = "test2"
+output_onnx_name = "test"
 
-model = LARGER_STEP2()
+
+model = SETP2_BP_EXPORT()
 model.eval()
-checkpoint = torch.load("./checkpoints/true4Resolution1006/step2.pth.tar")
+checkpoint = torch.load("./checkpoints/{}.pth.tar".format(step2_checkpoint_name))
 
 state_dict = checkpoint["state_dict"]
 
@@ -56,7 +54,7 @@ dummy_k = torch.randn(1, 3, 3, device=device_str)            # Adjust the size a
 # onnx.checker.check_model(onnx_model)
 
 # Export the model
-onnx_model_path = "./4camera_top20_4resolutionLargerModel.onnx"
+onnx_model_path = ("./onnx/{}.onnx".format(output_onnx_name))   
 torch.onnx.export(
     model,  # Pass the actual model if using nn.DataParallel
     (dummy_rgb, dummy_depth, dummy_rgb, dummy_depth),  # Pass the inputs as a tuple
