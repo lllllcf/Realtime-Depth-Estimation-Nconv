@@ -11,10 +11,13 @@ import time
 import copy
 import matplotlib.pyplot as plt
 
-output_name = "test"
-num_train_epoch = 2
+output_name = "NewLossWithMask4.0"
+num_train_epoch = 50
 learning_rate = [1e-4]
 weight_decay = [1e-7]
+apply_mask = True
+add_noise = False
+use_gradient_loss = True
 
 def train_model(model, train_loader, val_loader, num_epoch, parameter, patience, device_str):
     device = torch.device(device_str if device_str == 'cuda' and torch.cuda.is_available() else 'cpu')
@@ -57,7 +60,7 @@ def train_model(model, train_loader, val_loader, num_epoch, parameter, patience,
             optim.zero_grad()
             estimated_depth = model(depth, depth)
 
-            loss = calculate_loss(estimated_depth[0, :, :, :], gt[0, :, :, :])
+            loss = calculate_loss(estimated_depth[0, :, :, :], gt[0, :, :, :], use_gradient_loss)
             loss.requires_grad_().backward()
             optim.step()
 
@@ -72,7 +75,7 @@ def train_model(model, train_loader, val_loader, num_epoch, parameter, patience,
 
         # Validation:
         print('Validation')
-        val_loss = get_performance(model, val_loader, device_str)
+        val_loss = get_performance(model, val_loader, device_str, use_gradient_loss)
         model.to(device)
         print("Validation loss: {:.4f}".format(val_loss))
         # val_loss = sum(loss_train) / len(loss_train)
@@ -117,9 +120,9 @@ best_wd = 0
 final_stats = {}
 for lr in learning_rate:
     for wd in weight_decay:
-        train_dataset = DataLoader_NYU('/oscar/data/jtompki1/cli277/nyuv2/nyuv2', 'train', True, True)
+        train_dataset = DataLoader_NYU('/oscar/data/jtompki1/cli277/nyuv2/nyuv2', 'train', apply_mask, add_noise)
         train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
-        val_dataset = DataLoader_NYU('/oscar/data/jtompki1/cli277/nyuv2/nyuv2', 'val', True, True)
+        val_dataset = DataLoader_NYU('/oscar/data/jtompki1/cli277/nyuv2/nyuv2', 'val', apply_mask, add_noise)
         val_loader = DataLoader(val_dataset, batch_size=1, shuffle=True)
 
         print('Train size: ' + str(len(train_loader)))
