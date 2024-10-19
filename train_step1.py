@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 output_name = "Test"
 num_train_epoch = 50
-learning_rate = [1e-4]
+learning_rate = [1e-2]
 weight_decay = [1e-7]
 apply_mask = True
 add_noise = False
@@ -22,7 +22,6 @@ use_gradient_loss = True
 def train_model(model, train_loader, val_loader, num_epoch, parameter, patience, device_str):
     device = torch.device(device_str if device_str == 'cuda' and torch.cuda.is_available() else 'cpu')
     model.to(device)
-    model.train()
 
     loss_all, loss_index = [], []
     num_itration = 0
@@ -30,7 +29,8 @@ def train_model(model, train_loader, val_loader, num_epoch, parameter, patience,
     num_bad_epoch = 0
 
     optim = get_optimizer(model, parameter["optim_type"], parameter["lr"], parameter["weight_decay"])
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, mode="min", factor=0.5, patience=patience)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, mode="min", factor=0.1, patience=patience)
+    #scheduler = torch.optim.lr_scheduler.LinearLR(optim, start_factor=1.0, end_factor=0, total_iters=num_epoch)
 
     print('------------------------ Start Training ------------------------')
     t_start = time.time()
@@ -38,6 +38,7 @@ def train_model(model, train_loader, val_loader, num_epoch, parameter, patience,
     loss = 0
     loss_train = []
     for epoch in range(num_epoch):
+        model.train()
         loss_train = []
         for batch, data in enumerate(train_loader):
             # if (batch > 600):
@@ -54,18 +55,21 @@ def train_model(model, train_loader, val_loader, num_epoch, parameter, patience,
             optim.zero_grad()
             estimated_depth = model(depth, depth)
             
-            loss = calculate_loss(estimated_depth[0, :, :, :], gt[0, :, :, :], use_gradient_loss)
-            loss.backward()
+            loss = calculate_loss(estimated_depth[0::2, :, :, :], gt, use_gradient_loss)
+            loss.requires_grad_().backward()
+            optim.step()
 
+            # loss_all.append(np.sqrt(loss.item()))
+            # loss_train.append(np.sqrt(loss.item()))
             loss_all.append(loss.item())
             loss_train.append(loss.item())
             loss_index.append(num_itration)
             
-            if (batch % 100 == 0 and batch != 0):
-                print('Batch No. {0}'.format(batch))
-                t_end = time.time()
-                print('Delta time {0:.4f} seconds'.format(t_end - t_step))
-                t_step = time.time()
+            if (batch % (100 // train_loader.batch_size) == 0 and batch != 0):
+                # print('Batch No. {0}'.format(batch))
+                # t_end = time.time()
+                # print('Delta time {0:.4f} seconds'.format(t_end - t_step))
+                # t_step = time.time()
                 save_depth((estimated_depth[0, 0, :, :]).detach().cpu().numpy(), 'tmp/color_output.png')
                 save_depth((depth[0, 0, :, :]).detach().cpu().numpy(), 'tmp/color_sparse.png')
                 save_depth((gt[0, 0, :, :]).detach().cpu().numpy(), 'tmp/color_gt.png')
@@ -80,7 +84,7 @@ def train_model(model, train_loader, val_loader, num_epoch, parameter, patience,
         # Validation:
         print('Validation')
         val_loss = get_performance(model, val_loader, device_str, use_gradient_loss)
-        model.to(device)
+        #sqrt_loss = np.sqrt(val_loss)
         print("Validation loss: {:.4f}".format(val_loss))
         # val_loss = sum(loss_train) / len(loss_train)
         # print("Train loss: {:.4f}".format(val_loss))
@@ -93,11 +97,13 @@ def train_model(model, train_loader, val_loader, num_epoch, parameter, patience,
             num_bad_epoch += 1
 
         # early stopping
-        if num_bad_epoch >= (patience+2):
-            break
+        # if num_bad_epoch >= (patience+3):
+        #     break
 
         # learning rate scheduler
         scheduler.step(val_loss)
+        #scheduler.step()
+
         print("Current learning rate: {:.9f}".format(scheduler.get_last_lr()[0]))
 
 
