@@ -46,6 +46,9 @@ class DNET(nn.Module):
         self.nconv1 = NConv2d(1, num_channels, (5,5), pos_fn, 'p', padding=(2, 2))
         self.nconv2 = NConv2d(num_channels, num_channels, (5,5), pos_fn, 'p', padding=(2, 2))
         self.nconv3 = NConv2d(num_channels, num_channels, (5,5), pos_fn, 'p', padding=(2, 2))
+
+        self.nconv3_4 = NConv2d(num_channels, num_channels, (5,5), pos_fn, 'p', padding=(2, 2))
+        self.nconv3_6 = NConv2d(num_channels, num_channels, (5,5), pos_fn, 'p', padding=(2, 2))
         
         self.nconv4 = NConv2d(2*num_channels, num_channels, (3,3), pos_fn, 'p', padding=(1, 1))
         self.nconv5 = NConv2d(2*num_channels, num_channels, (3,3), pos_fn, 'p', padding=(1, 1))
@@ -65,21 +68,20 @@ class DNET(nn.Module):
         # Downsample 1
         ds = 2
         c1_ds, _ = F.max_pool2d(c1, ds, ds, return_indices=True)
-        x1_ds, _ = F.max_pool2d(x1, ds, ds, return_indices=True)
-        x2_ds, c2_ds = self.nconv2(x1_ds, c1_ds)        
+        x1_ds, _ = F.max_pool2d(x1, ds, ds, return_indices=True)     
         x2_ds, c2_ds = self.nconv3(x2_ds, c2_ds)
         
 
         # Downsample 2
         c2_dss, _ = F.max_pool2d(c2_ds, ds, ds, return_indices=True)
         x2_dss, _ = F.max_pool2d(x2_ds, ds, ds, return_indices=True)
-        x3_ds, c3_ds = self.nconv2(x2_dss, c2_dss)
+        x3_ds, c3_ds = self.nconv3_4(x2_dss, c2_dss)
         
 
         # Downsample 3
         c3_dss, _ = F.max_pool2d(c3_ds, ds, ds, return_indices=True)
         x3_dss, _ = F.max_pool2d(x3_ds, ds, ds, return_indices=True)
-        x4_ds, c4_ds = self.nconv2(x3_dss, c3_dss)                
+        x4_ds, c4_ds = self.nconv3_6(x3_dss, c3_dss)                
 
 
         # Upsample 1

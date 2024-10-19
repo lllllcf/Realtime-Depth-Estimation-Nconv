@@ -84,11 +84,11 @@ class SETP2_BP_EXPORT(nn.Module):
 
         self.step1 = SETP1_NCONV()
 
-        self.rgb_encoder0 = RGBEncoder(3, 32, 1)
-        self.rgb_encoder1 = RGBEncoder(32, 32, 2)
-        self.rgb_encoder2 = RGBEncoder(32, 64, 2)
-        self.rgb_encoder3 = RGBEncoder(64, 64, 2)
-        self.rgb_encoder4 = RGBEncoder(64, 64, 2)
+        # self.rgb_encoder0 = RGBEncoder(3, 32, 1)
+        # self.rgb_encoder1 = RGBEncoder(32, 32, 2)
+        # self.rgb_encoder2 = RGBEncoder(32, 64, 2)
+        # self.rgb_encoder3 = RGBEncoder(64, 64, 2)
+        # self.rgb_encoder4 = RGBEncoder(64, 64, 2)
 
         self.rgb_encoder0 = RGBEncoder(3, 32, 1)
         self.rgb_encoder1 = RGBEncoder(32, 64, 2)
