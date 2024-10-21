@@ -24,8 +24,8 @@ def get_performance(model, val_loader, device_str, use_gradient_loss):
     with torch.no_grad():
         loss_all = []
         for batch, data in enumerate(val_loader):
-            if (batch % 50 == 0 and batch != 0):
-                print('Val Batch No. {0}'.format(batch))
+            # if (batch % 50 == 0 and batch != 0):
+            #     print('Val Batch No. {0}'.format(batch))
 
             rgb = data['rgb'].to(device)
             depth = data['depth'].to(device)
@@ -136,11 +136,12 @@ def gradient_loss(input_img, predicted_img):
     return total_loss
 
 def calculate_loss(reconstructed_img, target_img, use_gradient_loss):
-    if (use_gradient_loss):      
-        loss_metric = F.l1_loss(reconstructed_img, target_img)
+    if (use_gradient_loss):
+        loss_metric = torch.sqrt(F.mse_loss(reconstructed_img, target_img))      
+        #loss_metric = F.l1_loss(reconstructed_img, target_img)
         loss_gradient = gradient_loss(target_img, reconstructed_img)
 
-        return loss_metric + 4.0 * loss_gradient
+        return loss_metric * 0.8 + loss_gradient * 0.2
         
     loss = F.mse_loss(reconstructed_img, target_img)
     #rmse_loss = torch.sqrt(loss)

@@ -12,7 +12,7 @@ import copy
 import matplotlib.pyplot as plt
 
 output_name = "Test"
-num_train_epoch = 50
+num_train_epoch = 40
 learning_rate = [1e-2]
 weight_decay = [1e-7]
 apply_mask = True
