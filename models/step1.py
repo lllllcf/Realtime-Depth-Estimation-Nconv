@@ -45,11 +45,11 @@ class DNET(nn.Module):
 
         self.nconv1 = NConv2d(1, num_channels, (5,5), pos_fn, 'p', padding=(2, 2))
         self.nconv2 = NConv2d(num_channels, num_channels, (5,5), pos_fn, 'p', padding=(2, 2))
-        self.nconv3 = NConv2d(num_channels, num_channels, (5,5), pos_fn, 'p', padding=(2, 2))
 
-        self.nconv3_4 = NConv2d(num_channels, num_channels, (5,5), pos_fn, 'p', padding=(2, 2))
-        self.nconv3_6 = NConv2d(num_channels, num_channels, (5,5), pos_fn, 'p', padding=(2, 2))
-        
+        self.nconv_down1 = NConv2d(num_channels, num_channels, (5,5), pos_fn, 'p', padding=(2, 2))
+        self.nconv_down2 = NConv2d(num_channels, num_channels, (5,5), pos_fn, 'p', padding=(2, 2))
+        self.nconv_down3 = NConv2d(num_channels, num_channels, (5,5), pos_fn, 'p', padding=(2, 2))
+
         self.nconv4 = NConv2d(2*num_channels, num_channels, (3,3), pos_fn, 'p', padding=(1, 1))
         self.nconv5 = NConv2d(2*num_channels, num_channels, (3,3), pos_fn, 'p', padding=(1, 1))
         self.nconv6 = NConv2d(2*num_channels, num_channels, (3,3), pos_fn, 'p', padding=(0, 0))
@@ -68,39 +68,35 @@ class DNET(nn.Module):
         # Downsample 1
         ds = 2
         c1_ds, _ = F.max_pool2d(c1, ds, ds, return_indices=True)
-        x1_ds, _ = F.max_pool2d(x1, ds, ds, return_indices=True)     
-        x2_ds, c2_ds = self.nconv3(x2_ds, c2_ds)
-        
+
+        x1_ds, _ = F.max_pool2d(x1, ds, ds, return_indices=True)
+        x2_ds, c2_ds = self.nconv_down1(x1_ds, c1_ds)                
 
         # Downsample 2
         c2_dss, _ = F.max_pool2d(c2_ds, ds, ds, return_indices=True)
         x2_dss, _ = F.max_pool2d(x2_ds, ds, ds, return_indices=True)
-        x3_ds, c3_ds = self.nconv3_4(x2_dss, c2_dss)
-        
+        x3_ds, c3_ds = self.nconv_down2(x2_dss, c2_dss)        
 
         # Downsample 3
         c3_dss, _ = F.max_pool2d(c3_ds, ds, ds, return_indices=True)
         x3_dss, _ = F.max_pool2d(x3_ds, ds, ds, return_indices=True)
-        x4_ds, c4_ds = self.nconv3_6(x3_dss, c3_dss)                
-
+        x4_ds, c4_ds = self.nconv_down3(x3_dss, c3_dss)                
 
         # Upsample 1
         x4 = F.interpolate(x4_ds, c3_ds.size()[2:], mode='nearest') 
         c4 = F.interpolate(c4_ds, c3_ds.size()[2:], mode='nearest')   
         x34_ds, c34_ds = self.nconv4(torch.cat((x3_ds,x4), 1),  torch.cat((c3_ds,c4), 1))       
-              
-        
+
         # Upsample 2
         x34 = F.interpolate(x34_ds, c2_ds.size()[2:], mode='nearest') 
         c34 = F.interpolate(c34_ds, c2_ds.size()[2:], mode='nearest')
         x23_ds, c23_ds = self.nconv5(torch.cat((x2_ds,x34), 1), torch.cat((c2_ds,c34), 1))
 
-        
         # Upsample 3
         x23 = F.interpolate(x23_ds, x0.size()[2:], mode='nearest') 
         c23 = F.interpolate(c23_ds, c0.size()[2:], mode='nearest') 
-
         xout, cout = self.nconv6(torch.cat((x23,x1), 1), torch.cat((c23,c1), 1))
+
         xout, cout = self.nconv7(xout, cout)
 
         return xout[:, :, 1:481, 1:641]
@@ -112,12 +108,15 @@ class NConv2d(_ConvNd):
         # Call _ConvNd constructor
         super(NConv2d, self).__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, False, output_padding=(0, 0), groups=groups, bias=bias, padding_mode='zeros')
 
-        self.eps = 1e-20
+        self.eps = 1e-7
         self.pos_fn = pos_fn
         self.init_method = init_method
         
         # Initialize weights and bias
         self.init_parameters()
+
+        self.bnorm = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU()
         
         if self.pos_fn is not None :
             EnforcePos.apply(self, 'weight', pos_fn)
@@ -132,12 +131,15 @@ class NConv2d(_ConvNd):
         nconv = nomin / (denom+self.eps)
         
         
-        # Add bias
+        # Add biasf
         b = self.bias
         sz = b.size(0)
         b = b.view(1,sz,1,1)
         b = b.expand_as(nconv)
         nconv += b
+
+        # nconv = self.bnorm(nconv)
+        # nconv = self.relu(nconv)
         
         # Propagate confidence
         cout = denom
@@ -151,7 +153,7 @@ class NConv2d(_ConvNd):
 
         cout = cout / s
         cout = cout.view(sz)
-        
+                
         return nconv, cout
     
     
