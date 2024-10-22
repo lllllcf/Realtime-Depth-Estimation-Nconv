@@ -19,19 +19,22 @@ def get_performance(model, val_loader, device_str, use_gradient_loss):
     device = torch.device(device_str if device_str == 'cuda' and torch.cuda.is_available() else 'cpu')
     model.to(device)
 
-    loss_all = []
-    for batch, data in enumerate(val_loader):
-        if (batch % 50 == 0 and batch != 0):
-            print('Val Batch No. {0}'.format(batch))
+    model.eval()
 
-        rgb = data['rgb'].to(device)
-        depth = data['depth'].to(device)
-        gt = data['gt'].to(device)
-        k = data['k'].to(device)
+    with torch.no_grad():
+        loss_all = []
+        for batch, data in enumerate(val_loader):
+            # if (batch % 50 == 0 and batch != 0):
+            #     print('Val Batch No. {0}'.format(batch))
 
-        estimated_depth = model(depth, depth)
-        loss= calculate_loss(estimated_depth[0, :, :, :], gt[0, :, :, :], use_gradient_loss)
-        loss_all.append(loss.item())
+            rgb = data['rgb'].to(device)
+            depth = data['depth'].to(device)
+            gt = data['gt'].to(device)
+            k = data['k'].to(device)
+
+            estimated_depth = model(depth, depth)
+            loss = calculate_loss(estimated_depth[0, :, :, :], gt[0, :, :, :], use_gradient_loss)
+            loss_all.append(loss.item())
 
     val_loss = sum(loss_all) / len(loss_all)
     return val_loss
@@ -133,12 +136,13 @@ def gradient_loss(input_img, predicted_img):
     return total_loss
 
 def calculate_loss(reconstructed_img, target_img, use_gradient_loss):
-    if (use_gradient_loss):      
-        loss_metric = F.l1_loss(reconstructed_img, target_img)
+    if (use_gradient_loss):
+        loss_metric = torch.sqrt(F.mse_loss(reconstructed_img, target_img))      
+        #loss_metric = F.l1_loss(reconstructed_img, target_img)
         loss_gradient = gradient_loss(target_img, reconstructed_img)
 
-        return loss_metric + 4.0 * loss_gradient
+        return loss_metric * 0.8 + loss_gradient * 0.2
         
     loss = F.mse_loss(reconstructed_img, target_img)
-    rmse_loss = torch.sqrt(loss)
-    return rmse_loss
+    #rmse_loss = torch.sqrt(loss)
+    return loss
