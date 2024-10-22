@@ -5,7 +5,6 @@ import numpy as np
 import functools
 from .utils import *
 from torch.cuda.amp import custom_fwd, custom_bwd
-# from .nconv import *
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
 import cv2
@@ -17,92 +16,338 @@ import numpy as np
 from scipy.stats import poisson
 from scipy import signal
 import torch.nn as nn
+from models.step1 import SETP1_NCONV
 
-class CSPN(nn.Module):
-    """
-    implementation of CSPN++
-    """
 
-    def __init__(self, in_channels, pt, norm_layer=nn.BatchNorm2d, act=nn.ReLU, eps=1e-6):
-        super().__init__()
-        self.pt = pt
-        self.weight3x3 = GenKernel(in_channels, 3, norm_layer=norm_layer, act=act, eps=eps)
-        self.weight5x5 = GenKernel(in_channels, 5, norm_layer=norm_layer, act=act, eps=eps)
-        self.weight7x7 = GenKernel(in_channels, 7, norm_layer=norm_layer, act=act, eps=eps)
-        self.convmask = nn.Sequential(
-            Basic2d(in_channels, in_channels, norm_layer=norm_layer, act=act),
-            Basic2d(in_channels, 3, norm_layer=None, act=nn.Sigmoid),
-        )
-        self.convck = nn.Sequential(
-            Basic2d(in_channels, in_channels, norm_layer=norm_layer, act=act),
-            Basic2d(in_channels, 3, norm_layer=None, act=functools.partial(nn.Softmax, dim=1)),
-        )
-        self.convct = nn.Sequential(
-            Basic2d(in_channels + 3, in_channels, norm_layer=norm_layer, act=act),
-            Basic2d(in_channels, 3, norm_layer=None, act=functools.partial(nn.Softmax, dim=1)),
+class SETP2_BP_TRAIN(nn.Module):
+
+    def __init__(self, step1_checkpoint_name):
+        super().__init__() 
+
+        self.step1 = SETP1_NCONV()
+
+        checkpoint = torch.load("./checkpoints/{}.pth.tar".format(step1_checkpoint_name))
+        state_dict = checkpoint["state_dict"]
+
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            name = k[7:] if k.startswith("module.") else k
+            new_state_dict[name] = v
+        self.step1.load_state_dict(new_state_dict, strict=False)
+        
+        # Disable Training for the unguided module
+        for p in self.step1.parameters():            
+            p.requires_grad=False
+
+        self.rgb_encoder0 = RGBEncoder(3, 32, 1)
+        self.rgb_encoder1 = RGBEncoder(32, 32, 2)
+        self.rgb_encoder2 = RGBEncoder(32, 64, 2)
+        self.rgb_encoder3 = RGBEncoder(64, 64, 2)
+        self.rgb_encoder4 = RGBEncoder(64, 64, 2)
+
+        self.rgb_encoder0 = RGBEncoder(3, 32, 1)
+        self.rgb_encoder1 = RGBEncoder(32, 64, 2)
+        self.rgb_encoder2 = RGBEncoder(64, 64, 2)
+        self.rgb_encoder3 = RGBEncoder(64, 64, 2)
+        # self.rgb_encoder4 = RGBEncoder(64, 64, 2)
+
+        self.fuse0 = FusionResolution0(64,8)
+        self.fuse1 = FusionResolutionBlock(64, 64, 4)
+        self.fuse2 = FusionResolutionBlock(64, 32, 2)
+        self.fuse3 = FusionResolutionBlock(32, 32, 1)
+        # self.fuse4 = FusionResolutionBlock(32, 32, 1)
+            
+    def forward(self, rgb0, depth0, rgb1, depth1): 
+        
+        sparse = self.step1(depth0, depth1)
+        rgb = torch.cat((rgb0, rgb1), dim=0)
+
+        rgb0 = self.rgb_encoder0(rgb)
+        rgb1 = self.rgb_encoder1(rgb0) # 480 -> 240
+        rgb2 = self.rgb_encoder2(rgb1) # 240 -> 120
+        rgb3 = self.rgb_encoder3(rgb2) # 120 -> 60
+        # rgb4 = self.rgb_encoder4(rgb3) # 60 -> 30
+
+        out_fusion0, out_depth0 = self.fuse0(rgb3, sparse)
+        out_fusion1, out_depth1 = self.fuse1(rgb2, sparse, out_fusion0, out_depth0)
+        out_fusion2, out_depth2 = self.fuse2(rgb1, sparse, out_fusion1, out_depth1)
+        out_fusion3, out_depth3 = self.fuse3(rgb0, sparse, out_fusion2, out_depth2)
+        # out_fusion4, out_depth4 = self.fuse4(rgb0, sparse, out_fusion3, out_depth3)
+
+        return [out_depth0[0:1], out_depth1[0:1], out_depth2[0:1], out_depth3[0:1]], [out_depth0[1:2], out_depth1[1:2], out_depth2[1:2], out_depth3[1:2]]
+
+
+class SETP2_BP_EXPORT(nn.Module):
+
+    def __init__(self):
+        super().__init__() 
+
+        self.step1 = SETP1_NCONV()
+
+        # self.rgb_encoder0 = RGBEncoder(3, 32, 1)
+        # self.rgb_encoder1 = RGBEncoder(32, 32, 2)
+        # self.rgb_encoder2 = RGBEncoder(32, 64, 2)
+        # self.rgb_encoder3 = RGBEncoder(64, 64, 2)
+        # self.rgb_encoder4 = RGBEncoder(64, 64, 2)
+
+        self.rgb_encoder0 = RGBEncoder(3, 32, 1)
+        self.rgb_encoder1 = RGBEncoder(32, 64, 2)
+        self.rgb_encoder2 = RGBEncoder(64, 64, 2)
+        self.rgb_encoder3 = RGBEncoder(64, 64, 2)
+        # self.rgb_encoder4 = RGBEncoder(64, 64, 2)
+
+        self.fuse0 = FusionResolution0(64,8)
+        self.fuse1 = FusionResolutionBlock(64, 64, 4)
+        self.fuse2 = FusionResolutionBlock(64, 32, 2)
+        self.fuse3 = FusionResolutionBlock(32, 32, 1)
+        # self.fuse4 = FusionResolutionBlock(32, 32, 1)
+            
+    def forward(self, rgb0, depth0, rgb1, depth1): 
+        
+        sparse = self.step1(depth0, depth1)
+        rgb = torch.cat((rgb0, rgb1), dim=0)
+
+        rgb0 = self.rgb_encoder0(rgb)
+        rgb1 = self.rgb_encoder1(rgb0) # 480 -> 240
+        rgb2 = self.rgb_encoder2(rgb1) # 240 -> 120
+        rgb3 = self.rgb_encoder3(rgb2) # 120 -> 60
+        # rgb4 = self.rgb_encoder4(rgb3) # 60 -> 30
+
+        out_fusion0, out_depth0 = self.fuse0(rgb3, sparse)
+        out_fusion1, out_depth1 = self.fuse1(rgb2, sparse, out_fusion0, out_depth0)
+        out_fusion2, out_depth2 = self.fuse2(rgb1, sparse, out_fusion1, out_depth1)
+        out_fusion3, out_depth3 = self.fuse3(rgb0, sparse, out_fusion2, out_depth2)
+        # out_fusion4, out_depth4 = self.fuse4(rgb0, sparse, out_fusion3, out_depth3)
+
+        out_depth3[:, :, :45, :] = 0
+        out_depth3[:, :, -45:, :] = 0
+        out_depth3[:, :, :, :20] = 0
+        
+        return out_depth3[0:1], out_depth3[1:2]
+
+
+
+def Conv1x1(in_planes, out_planes, stride, bias=False, groups=1, dilation=1, padding_mode='zeros'):
+    """1x1 convolution"""
+    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=bias)
+
+class RGBEncoder(nn.Module):
+    def __init__(self, in_channel, out_channel, stride):
+        super(RGBEncoder, self).__init__()
+        self.stride = stride
+        
+        self.encoder = nn.Sequential(
+            nn.Conv2d(in_channels=in_channel, out_channels=out_channel, kernel_size=3, stride=self.stride, padding=1),
+            nn.BatchNorm2d(out_channel),
+            nn.ReLU(inplace=True)
         )
 
-        self.convt1 = nn.Sequential(
-            nn.Conv2d(1,8,3,1,1),
-            nn.ReLU(),
-            nn.Conv2d(8,1,3,1,1),
-            nn.ReLU(),
-        )
-
-        self.convt2 = nn.Sequential(
-            nn.Conv2d(1,8,3,1,1),
-            nn.ReLU(),
-            nn.Conv2d(8,1,3,1,1),
-            nn.ReLU(),
-        )
-
-        self.convt = nn.Sequential(
-            nn.Conv2d(1,32,3,1,1),
-            nn.ReLU(),
-            nn.Conv2d(32,64,3,1,1),
-            nn.ReLU(),
-            nn.Conv2d(64,32,3,1,1),
-            nn.ReLU(),
-            nn.Conv2d(32,8,3,1,1),
-            nn.ReLU(),
-            nn.Conv2d(8,1,3,1,1),
+        self.downsample = nn.Sequential(
+            Conv1x1(in_channel, out_channel, self.stride)
         )
     
-    def bpconvlocal(self, t1, t2):
-        # print("=====================================")
-        # print(t1.shape)
-        # print(t2.shape)
-        t1 = self.convt1(t1)
-        t2 = self.convt2(t2)
-        out = self.convt(t1 * t2)
+    def forward(self, x):
+        identity = x
+        out = self.encoder(x)
+        out = out + self.downsample(x)
+
         return out
 
-    @custom_fwd(cast_inputs=torch.float32)
-    def forward(self, fout, hn, h0):
+def Conv3x3(in_planes, stride=1, groups=1, dilation=1, padding_mode='zeros', bias=False):
+    return nn.Conv2d(in_planes, 1, kernel_size=3, stride=stride,
+                     padding=dilation, padding_mode=padding_mode, groups=groups, bias=bias, dilation=dilation)
+
+class UpCat(nn.Module):
+    def __init__(self, in_channels, out_channels, norm_layer=nn.BatchNorm2d, kernel_size=3, padding=1,
+                 padding_mode='zeros', act=nn.ReLU):
+        super().__init__()
+        self.upf = Basic2dTrans(in_channels + 1, out_channels, norm_layer=norm_layer, act=act)
+        self.conv = Basic2d(out_channels * 2, out_channels,
+                            norm_layer=norm_layer, kernel_size=kernel_size,
+                            padding=padding, padding_mode=padding_mode, act=act)
+                            
+
+    def forward(self, y, x, d):
+        """
+        x is
+        """
+        fout = self.upf(torch.cat([x, d], dim=1))
+        fout = self.conv(torch.cat([fout, y], dim=1))
+        return fout
+
+class Basic2d(nn.Module):
+    def __init__(self, in_channels, out_channels, norm_layer=None, kernel_size=3, padding=1, padding_mode='zeros',
+                 act=nn.ReLU, stride=1):
+        super().__init__()
+        if norm_layer:
+            conv = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
+                             stride=stride, padding=padding, bias=False, padding_mode=padding_mode)
+        else:
+            conv = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size,
+                             stride=stride, padding=padding, bias=True, padding_mode=padding_mode)
+        self.conv = nn.Sequential(OrderedDict([('conv', conv)]))
+        if norm_layer:
+            self.conv.add_module('bn', norm_layer(out_channels))
+        self.conv.add_module('relu', act())
+
+    def forward(self, x):
+        out = self.conv(x)
+        return out
+
+class Basic2dTrans(nn.Module):
+    def __init__(self, in_channels, out_channels, norm_layer=None, act=nn.ReLU):
+        super().__init__()
+        if norm_layer is None:
+            bias = True
+            norm_layer = nn.Identity
+        else:
+            bias = False
+        self.conv = nn.ConvTranspose2d(in_channels=in_channels, out_channels=out_channels, kernel_size=4,
+                                       stride=2, padding=1, bias=bias)
+        self.bn = norm_layer(out_channels)
+        self.relu = act()
+
+    def forward(self, x):
+        out = self.conv(x.contiguous())
+        out = self.bn(out)
+        out = self.relu(out)
+        return out
+
+class NewFusionBlock(nn.Module):
+    def __init__(self, rgb_channels, out_channels):
+        super(NewFusionBlock, self).__init__()
+        self.rgb_conv = ConvBlock(rgb_channels, rgb_channels)
+        self.depth_conv = ConvBlock(1, rgb_channels)
+
+        self.fuse_conv1 = ConvBlock(rgb_channels * 2, rgb_channels)
+
+        self.fuse_conv2 = ConvBlock(rgb_channels, out_channels)
+
+        self.fuse_conv3 = ConvBlock(out_channels, out_channels)
+
+    def forward(self, rgb, depth):
+        rgb_feat = self.rgb_conv(rgb)
+        depth_feat = self.depth_conv(depth)
+
+        fused = torch.cat((rgb_feat, depth_feat),1)
+        fused = self.fuse_conv1(fused)
+        fused = self.fuse_conv2(fused)
+        fused = self.fuse_conv3(fused)
+        return fused
+
+class FusionResolutionBlock(nn.Module):
+    def __init__(self, in_channel, out_channel, downsample_factor):
+        super(FusionResolutionBlock, self).__init__()
+
+        self.upcat = UpCat(in_channel, in_channel)
+
+        self.fuse = NewFusionBlock(in_channel, out_channel)
+        self.conv = Conv3x3(out_channel, 1)
+        self.downsample_factor = downsample_factor
+    
+    def forward(self, rgb, depth, depth_last_step, fusion_festure):
+
+        fout = self.upcat(rgb, fusion_festure, depth_last_step)
+
+        depth = F.interpolate(depth, scale_factor=1/self.downsample_factor, mode='bilinear', align_corners=True)
+
+        fout = self.fuse(fout, depth)
+        res = self.conv(fout)
+        dout = depth
+        dout = dout + res
+
+        return fout, dout
+
+
+class FusionResolution0(nn.Module):
+    def __init__(self, in_channel, downsample_factor):
+        super(FusionResolution0, self).__init__()
+
+        self.fuse = NewFusionBlock(in_channel, in_channel)
+        self.conv = Conv3x3(in_channel, 1)
+        self.downsample_factor = downsample_factor
+    
+    def forward(self, rgb, depth):
+        depth = F.interpolate(depth, scale_factor=1/self.downsample_factor, mode='bilinear', align_corners=True)
+
+        fout = self.fuse(rgb, depth)
+        res = self.conv(fout)
+        dout = depth
+        dout = dout + res
+
+        return fout, dout
+
+class ConvBlockBN(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1):
+        super(ConvBlock, self).__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
+        self.bn = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        return self.relu(self.bn(self.conv(x)))
+
+class ConvBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1):
+        super(ConvBlock, self).__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        return self.relu(self.conv(x))
+
+
+
+class UpsampleBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(UpsampleBlock, self).__init__()
+        self.conv1 = ConvBlock(in_channels, out_channels)
+        self.conv2 = ConvBlock(out_channels, out_channels)
+
+    def forward(self, x):
+        x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=True)
+        x = self.conv1(x)
+        return self.conv2(x)
+
+
+class FusionBlock(nn.Module):
+    def __init__(self, rgb_channels, sparse_channels, fusion_channels):
+        super(FusionBlock, self).__init__()
+        self.rgb_conv = ConvBlock(rgb_channels, rgb_channels)
+        self.sparse_conv = ConvBlock(sparse_channels, sparse_channels)
+        self.fuse_conv1 = ConvBlock(rgb_channels * 2, sparse_channels)
+
         
-        weight3x3 = self.weight3x3(fout)
-        weight5x5 = self.weight5x5(fout)
-        weight7x7 = self.weight7x7(fout)
+        self.fuse_conv2 = ConvBlock(sparse_channels, fusion_channels)
+        self.fuse_conv3 = ConvBlock(fusion_channels, fusion_channels)
 
-        mask3x3, mask5x5, mask7x7 = torch.split(self.convmask(fout) * (h0 > 1e-3).float(), 1, dim=1)
-        conf3x3, conf5x5, conf7x7 = torch.split(self.convck(fout), 1, dim=1)
-        hn3x3 = hn5x5 = hn7x7 = hn
-        hns = [hn, ]
+    def forward(self, rgb, sparse, dense):
+        rgb_feat = self.rgb_conv(rgb)
+        sparse_feat = self.sparse_conv(sparse)
 
-        for i in range(self.pt):
-            hn3x3 = (1. - mask3x3) * self.bpconvlocal(hn3x3, weight3x3) + mask3x3 * h0
-            hn5x5 = (1. - mask5x5) * self.bpconvlocal(hn5x5, weight5x5) + mask5x5 * h0
-            hn7x7 = (1. - mask7x7) * self.bpconvlocal(hn7x7, weight7x7) + mask7x7 * h0
-            if i == self.pt // 2 - 1:
-                hns.append(conf3x3 * hn3x3 + conf5x5 * hn5x5 + conf7x7 * hn7x7)
+        fused = torch.cat((rgb_feat, dense),1)
+        fused = self.fuse_conv1(fused)
+        
+        fused = self.fuse_conv2(fused + sparse_feat)
+        fused = self.fuse_conv3(fused)
+        return fused
 
-        hns.append(conf3x3 * hn3x3 + conf5x5 * hn5x5 + conf7x7 * hn7x7)
-        hns = torch.cat(hns, dim=1)
+class Fusion0(nn.Module):
+    def __init__(self, rgb_channels, sparse_channels, fusion_channels):
+        super(Fusion0, self).__init__()
+        self.rgb_conv = ConvBlock(rgb_channels, rgb_channels)
+        self.sparse_conv = ConvBlock(sparse_channels, sparse_channels)
 
-        wt = self.convct(torch.cat([fout, hns], dim=1))
+        self.fuse_conv2 = ConvBlock(sparse_channels, fusion_channels)
+        self.fuse_conv3 = ConvBlock(fusion_channels, fusion_channels)
 
-        hn = torch.sum(wt * hns, dim=1, keepdim=True)
-        return hn
+    def forward(self, rgb, sparse):
+        rgb_feat = self.rgb_conv(rgb)
+        sparse_feat = self.sparse_conv(sparse)
+        
+        fused = self.fuse_conv2(rgb_feat + sparse_feat)
+        fused = self.fuse_conv3(fused)
+        return fused
 
 
 # Non-negativity enforcement class        
@@ -161,388 +406,3 @@ class GenKernel(nn.Module):
         weight_pre, weight_post = torch.split(weight, [weight.shape[1] // 2, weight.shape[1] // 2], dim=1)
         weight = torch.cat([weight_pre, weight_mid, weight_post], dim=1).contiguous()
         return weight[:, weight.shape[1] // 2, :, :]
-
-
-class STEP1(nn.Module):
-    def __init__(self):
-        super().__init__() 
-
-        self.d_net = DNET(32)
-               
-            
-    def forward(self, x0_d): 
-
-        c0 = (x0_d > 0.01).float() 
-        
-        # Depth Network
-        xout_d, cout_d = self.d_net(x0_d)
-        
-        return xout_d, cout_d 
-
-
-
-class STEP2(nn.Module):
-
-    def __init__(self, pos_fn=None):
-        super().__init__() 
-
-        self.step1 = STEP1()
-        # checkpoint = torch.load("./checkpoints/step1.pth.tar")
-        # state_dict = checkpoint["state_dict"]
-
-        # new_state_dict = {}
-        # for k, v in state_dict.items():
-        #     name = k[7:] if k.startswith("module.") else k
-        #     new_state_dict[name] = v
-        # self.step1.load_state_dict(new_state_dict, strict=False)
-        
-        # # Disable Training for the unguided module
-        # for p in self.step1.parameters():            
-        #     p.requires_grad=False
-
-        
-        
-        # U-Net
-        self.conv1 = nn.Conv2d(5, 80, (3,3), 2, 1, bias=True)
-        self.conv2 = nn.Conv2d(80, 80, (3,3), 2,1, bias=True)
-        self.conv3 = nn.Conv2d(80, 80, (3,3), 2, 1, bias=True)
-        self.conv4 = nn.Conv2d(80, 80, (3,3), 2, 1, bias=True)
-        self.conv5 = nn.Conv2d(80, 80, (3,3), 2, 1, bias=True)
-                
-        self.conv6 = nn.Conv2d(80+80, 64, (3,3), 1, 1, bias=True)
-        self.conv7 = nn.Conv2d(64+80, 64, (3,3), 1, 1, bias=True)
-        self.conv8 = nn.Conv2d(64+80, 32, (3,3), 1, 1, bias=True)
-        self.conv9 = nn.Conv2d(32+80, 32, (3,3), 1, 1, bias=True)
-        self.conv10 = nn.Conv2d(32+1, 1, (3,3), 1, 1, bias=True)
-            
-    def forward(self, x0_rgb, x0_d): 
-        
-        # Depth Network
-        xout_d, cout_d = self.step1(x0_d)
-
-        # U-Net
-        x1 = F.relu(self.conv1(torch.cat((xout_d, x0_rgb,cout_d),1)))
-        x2 = F.relu(self.conv2(x1))
-        x3 = F.relu(self.conv3(x2))
-        x4 = F.relu(self.conv4(x3))
-        x5 = F.relu(self.conv5(x4))
-
-        # Upsample 1 
-        x5u = F.interpolate(x5, x4.size()[2:], mode='nearest')
-        x6 = F.leaky_relu(self.conv6(torch.cat((x5u, x4),1)), 0.2)
-        
-        # Upsample 2
-        x6u = F.interpolate(x6, x3.size()[2:], mode='nearest')
-        x7 = F.leaky_relu(self.conv7(torch.cat((x6u, x3),1)), 0.2)
-        
-        # Upsample 3
-        x7u = F.interpolate(x7, x2.size()[2:], mode='nearest')
-        x8 = F.leaky_relu(self.conv8(torch.cat((x7u, x2),1)), 0.2)
-        
-        # Upsample 4
-        x8u = F.interpolate(x8, x1.size()[2:], mode='nearest')
-        x9 = F.leaky_relu(self.conv9(torch.cat((x8u, x1),1)), 0.2)
-                
-        # Upsample 5
-        x9u = F.interpolate(x9, x0_d.size()[2:], mode='nearest')
-        xout = F.leaky_relu(self.conv10(torch.cat((x9u, x0_d),1)), 0.2)
-
-        # rgb = self.rgb(torch.cat((x0_rgb, cout_d), 1))
-        # dout = self.cspn(rgb, xout, x0_d)
-
-        xout[:, :, :45, :] = x0_d[:, :, :45, :]
-        xout[:, :, -45:, :] = x0_d[:, :, -45:, :]
-        
-        return xout, cout_d 
-
-class STEP3(nn.Module):
-
-    def __init__(self, pos_fn=None):
-        super().__init__() 
-
-        self.step2 = STEP2()
-        checkpoint = torch.load("./checkpoints/step2.pth.tar")
-        state_dict = checkpoint["state_dict"]
-
-        new_state_dict = {}
-        for k, v in state_dict.items():
-            name = k[7:] if k.startswith("module.") else k
-            new_state_dict[name] = v
-        self.step2.load_state_dict(new_state_dict, strict=False)
-        
-        # Disable Training for the unguided module
-        for p in self.step2.parameters():            
-            p.requires_grad=False
-
-        self.rgb = nn.Sequential(
-          nn.Conv2d(4,64,3,1,1),
-          nn.ReLU(),
-          nn.Conv2d(64,64,3,1,1),
-          nn.ReLU(),
-          nn.Conv2d(64,64,3,1,1),
-          nn.ReLU(),
-          nn.Conv2d(64,64,3,1,1),
-          nn.ReLU(),
-          nn.Conv2d(64,64,3,1,1),
-          nn.ReLU(),
-          nn.Conv2d(64,32,3,1,1),
-          nn.ReLU(),                                            
-        )#186,624 Params
-
-        self.cspn = CSPN(32, pt=2 * (6 - 0))
-               
-            
-    def forward(self, x0_rgb, x0_d): 
-
-        xout_d, cout_d = self.step2(x0_rgb, x0_d)
-
-        rgb = self.rgb(torch.cat((x0_rgb, cout_d), 1))
-        dout = self.cspn(rgb, xout_d, x0_d)
-        
-        return dout, cout_d 
-
-class SIMPLE(nn.Module):
-
-    def __init__(self, pos_fn=None):
-        super().__init__() 
-
-        self.d_net = DNET(32)
-        
-        # U-Net
-        self.conv1 = nn.Conv2d(5, 80, (3,3), 2, 1, bias=True)
-        self.conv2 = nn.Conv2d(80, 80, (3,3), 2,1, bias=True)
-        self.conv3 = nn.Conv2d(80, 80, (3,3), 2, 1, bias=True)
-        self.conv4 = nn.Conv2d(80, 80, (3,3), 2, 1, bias=True)
-        self.conv5 = nn.Conv2d(80, 80, (3,3), 2, 1, bias=True)
-                
-        self.conv6 = nn.Conv2d(80+80, 64, (3,3), 1, 1, bias=True)
-        self.conv7 = nn.Conv2d(64+80, 64, (3,3), 1, 1, bias=True)
-        self.conv8 = nn.Conv2d(64+80, 32, (3,3), 1, 1, bias=True)
-        self.conv9 = nn.Conv2d(32+80, 32, (3,3), 1, 1, bias=True)
-        self.conv10 = nn.Conv2d(32+1, 1, (3,3), 1, 1, bias=True)
-
-        # self.cspn = CSPN(32, pt=2 * (6 - 0))
-
-        self.rgb = nn.Sequential(
-          nn.Conv2d(4,64,3,1,1),
-          nn.ReLU(),
-          nn.Conv2d(64,64,3,1,1),
-          nn.ReLU(),
-          nn.Conv2d(64,64,3,1,1),
-          nn.ReLU(),
-          nn.Conv2d(64,64,3,1,1),
-          nn.ReLU(),
-          nn.Conv2d(64,64,3,1,1),
-          nn.ReLU(),
-          nn.Conv2d(64,32,3,1,1),
-          nn.ReLU(),                                            
-        )#186,624 Params
-               
-            
-    def forward(self, x0_rgb, x0_d): 
-
-        c0 = (x0_d > 0.01).float() 
-        
-        # Depth Network
-        xout_d, cout_d = self.d_net(x0_d)
-
-        # U-Net
-        x1 = F.relu(self.conv1(torch.cat((xout_d, x0_rgb,cout_d),1)))
-        x2 = F.relu(self.conv2(x1))
-        x3 = F.relu(self.conv3(x2))
-        x4 = F.relu(self.conv4(x3))
-        x5 = F.relu(self.conv5(x4))
-
-        # Upsample 1 
-        x5u = F.interpolate(x5, x4.size()[2:], mode='nearest')
-        x6 = F.leaky_relu(self.conv6(torch.cat((x5u, x4),1)), 0.2)
-        
-        # Upsample 2
-        x6u = F.interpolate(x6, x3.size()[2:], mode='nearest')
-        x7 = F.leaky_relu(self.conv7(torch.cat((x6u, x3),1)), 0.2)
-        
-        # Upsample 3
-        x7u = F.interpolate(x7, x2.size()[2:], mode='nearest')
-        x8 = F.leaky_relu(self.conv8(torch.cat((x7u, x2),1)), 0.2)
-        
-        # Upsample 4
-        x8u = F.interpolate(x8, x1.size()[2:], mode='nearest')
-        x9 = F.leaky_relu(self.conv9(torch.cat((x8u, x1),1)), 0.2)
-                
-        # Upsample 5
-        x9u = F.interpolate(x9, x0_d.size()[2:], mode='nearest')
-        xout = F.leaky_relu(self.conv10(torch.cat((x9u, x0_d),1)), 0.2)
-
-        # rgb = self.rgb(torch.cat((x0_rgb, cout_d), 1))
-        # dout = self.cspn(rgb, xout, x0_d)
-        
-        return xout, cout_d 
-
-class NConv2d(_ConvNd):
-    def __init__(self, in_channels, out_channels, kernel_size, pos_fn='softplus', init_method='k', stride=(1, 1), padding=(2, 2), dilation=(1, 1), groups=1, bias=True):
-        
-        # Call _ConvNd constructor
-        super(NConv2d, self).__init__(in_channels, out_channels, kernel_size, stride, padding, dilation, False, output_padding=(0, 0), groups=groups, bias=bias, padding_mode='zeros')
-
-        
-        self.eps = 1e-20
-        self.pos_fn = pos_fn
-        self.init_method = init_method
-        
-        # Initialize weights and bias
-        self.init_parameters()
-        
-        if self.pos_fn is not None :
-            EnforcePos.apply(self, 'weight', pos_fn)
-
-    def forward(self, data, conf):
-        
-        # Normalized Convolution
-        denom = F.conv2d(conf, self.weight, None, self.stride,
-                        self.padding, self.dilation, self.groups)        
-        nomin = F.conv2d(data*conf, self.weight, None, self.stride,
-                        self.padding, self.dilation, self.groups)        
-        nconv = nomin / (denom+self.eps)
-        
-        
-        # Add bias
-        b = self.bias
-        sz = b.size(0)
-        b = b.view(1,sz,1,1)
-        b = b.expand_as(nconv)
-        nconv += b
-        
-        # Propagate confidence
-        cout = denom
-        sz = cout.size()
-        cout = cout.view(sz[0], sz[1], -1)
-        
-        k = self.weight
-        k_sz = k.size()
-        k = k.view(k_sz[0], -1)
-        s = torch.sum(k, dim=-1, keepdim=True)        
-
-        cout = cout / s
-        cout = cout.view(sz)
-        
-        return nconv, cout
-    
-    
-    def init_parameters(self):
-        # Init weights
-        if self.init_method == 'x': # Xavier            
-            torch.nn.init.xavier_uniform_(self.weight)
-        elif self.init_method == 'k': # Kaiming
-            torch.nn.init.kaiming_uniform_(self.weight)
-        elif self.init_method == 'p': # Poisson
-            mu=self.kernel_size[0]/2 
-            dist = poisson(mu)
-            x = np.arange(0, self.kernel_size[0])
-            y = np.expand_dims(dist.pmf(x),1)
-            w = signal.convolve2d(y, y.transpose(), 'full')
-            w = torch.Tensor(w).type_as(self.weight)
-            w = torch.unsqueeze(w,0)
-            w = torch.unsqueeze(w,1)
-            w = w.repeat(self.out_channels, 1, 1, 1)
-            w = w.repeat(1, self.in_channels, 1, 1)
-            self.weight.data = w + torch.rand(w.shape)
-            
-        # Init bias
-        self.bias = torch.nn.Parameter(torch.zeros(self.out_channels)+0.01)
-
-
-class DNET(nn.Module):
-    def __init__(self, out_ch):
-        super().__init__()
-
-        pos_fn = "softplus"
-        # pos_fn = None
-        num_channels=8
-
-        self.nconv1 = NConv2d(1, num_channels, (5,5), pos_fn, 'p', padding=(2, 2))
-        self.nconv2 = NConv2d(num_channels, num_channels, (5,5), pos_fn, 'p', padding=(2, 2))
-        self.nconv3 = NConv2d(num_channels, num_channels, (5,5), pos_fn, 'p', padding=(2, 2))
-        
-        self.nconv4 = NConv2d(2*num_channels, num_channels, (3,3), pos_fn, 'p', padding=(1, 1))
-        self.nconv5 = NConv2d(2*num_channels, num_channels, (3,3), pos_fn, 'p', padding=(1, 1))
-        self.nconv6 = NConv2d(2*num_channels, num_channels, (3,3), pos_fn, 'p', padding=(0, 0))
-
-        self.nconv7 = NConv2d(num_channels, 1, (1,1), pos_fn, 'k')
-
-    def forward(self, S):
-
-        c0 = (S > 0.01).float()
-        x0 = S
-
-        x1, c1 = self.nconv1(x0, c0)
-        x1, c1 = self.nconv2(x1, c1)
-        x1, c1 = self.nconv3(x1, c1) 
-
-        # Downsample 1
-        ds = 2
-        c1_ds, _ = F.max_pool2d(c1, ds, ds, return_indices=True)
-        x1_ds, _ = F.max_pool2d(x1, ds, ds, return_indices=True)
-        # c1_ds /= 4
-        c1_ds[c1_ds > 0.7] = 0.99
-        
-        x2_ds, c2_ds = self.nconv2(x1_ds, c1_ds)        
-        x2_ds, c2_ds = self.nconv3(x2_ds, c2_ds)
-        
-        # Downsample 2
-        c2_dss, _ = F.max_pool2d(c2_ds, ds, ds, return_indices=True)
-        x2_dss, _ = F.max_pool2d(x2_ds, ds, ds, return_indices=True)
-        # c2_dss /= 4
-        c2_dss[c2_dss > 0.7] = 0.99
-
-        x3_ds, c3_ds = self.nconv2(x2_dss, c2_dss)
-        
-        # Downsample 3
-        c3_dss, _ = F.max_pool2d(c3_ds, ds, ds, return_indices=True)
-        x3_dss, _ = F.max_pool2d(x3_ds, ds, ds, return_indices=True)
-        # c3_dss /= 4 
-        c3_dss[c3_dss > 0.7] = 0.99
-
-        x4_ds, c4_ds = self.nconv2(x3_dss, c3_dss)                
-
-
-        # Upsample 1
-        x4 = F.interpolate(x4_ds, c3_ds.size()[2:], mode='nearest') 
-        c4 = F.interpolate(c4_ds, c3_ds.size()[2:], mode='nearest')   
-        x34_ds, c34_ds = self.nconv4(torch.cat((x3_ds,x4), 1),  torch.cat((c3_ds,c4), 1))     
-
-        # c34_ds[c34_ds > 0.6] = 0.99      
-              
-        
-        # Upsample 2
-        x34 = F.interpolate(x34_ds, c2_ds.size()[2:], mode='nearest') 
-        c34 = F.interpolate(c34_ds, c2_ds.size()[2:], mode='nearest')
-        # f34 = self.frgb(torch.cat((resize_batch_images(fout, c34.shape[2], c34.shape[3]), c34),1))
-        # d34 = self.smallfuse(torch.cat((x2_ds,x34,f34), 1))
-
-        x23_ds, c23_ds = self.nconv5(torch.cat((x2_ds,x34), 1), torch.cat((c2_ds,c34), 1))
-
-        # c23_ds[c23_ds > 0.6] = 0.99  
-        
-        
-        # Upsample 3
-        x23 = F.interpolate(x23_ds, x0.size()[2:], mode='nearest') 
-        c23 = F.interpolate(c23_ds, c0.size()[2:], mode='nearest') 
-        # f23 = self.frgb(torch.cat((resize_batch_images(fout, c23.shape[2], c23.shape[3]), c23),1))
-        # d23 = self.smallfuse(torch.cat((x23,x1,f23), 1))
-        xout, cout = self.nconv6(torch.cat((x23,x1), 1), torch.cat((c23,c1), 1))
-
-        
-        xout, cout = self.nconv7(xout, cout)
-
-        # a = zero_tensor = torch.zeros(cout.shape)
-        # bound = 0.1
-        # a[cout < bound] = 1.0 
-        # a[cout > bound] = 0.0 
-
-        # cout = a
-        return xout[:, :, 1:481, 1:641], cout[:, :, 1:481, 1:641]
-
-        # S[0, 0, 0, 0] = x4_ds[0, 0, 0, 0]
-        # S[0, 0, 0, 1] = c4_ds[0, 0, 0, 0]
-        # return S, S
-

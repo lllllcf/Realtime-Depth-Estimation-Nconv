@@ -83,20 +83,17 @@ class DataLoader_NYU(Dataset):
     def preprocess_depth(self, depth_path, apply_mask, apply_noise):
         raw_depth = self.get_depth(depth_path)
 
-        if (apply_mask):
-            mask_path = random.choice(self.masks)
-            mask_raw = np.load(mask_path)
+        mask_path = random.choice(self.masks)
+        mask_raw = np.load(mask_path)
         
-            # Check size and resize if necessary
-            if mask_raw.shape != (480, 640):
-                # Resize the mask using PIL
-                mask_image = Image.fromarray(mask_raw)
-                mask_image = mask_image.resize((640, 480), Image.NEAREST)  # Using nearest neighbor to avoid interpolation of binary values
-                mask = np.array(mask_image)
-            else:
-                mask = mask_raw
+        if mask_raw.shape != (480, 640):
+            mask_image = Image.fromarray(mask_raw)
+            mask_image = mask_image.resize((640, 480), Image.NEAREST)  # Using nearest neighbor to avoid interpolation of binary values
+            mask = np.array(mask_image)
+        else:
+            mask = mask_raw
 
-        if (apply_noise):
+        if apply_noise:
             num_elements = raw_depth.numel()
             num_noisy_points = int(num_elements * 0.1)
             indices = torch.randperm(num_elements)[:num_noisy_points]
@@ -104,40 +101,27 @@ class DataLoader_NYU(Dataset):
             noise = torch.FloatTensor(num_noisy_points).uniform_(-0.1, 0.1)
 
             flattened_depth = raw_depth.reshape(-1)
-    
+        
             flattened_depth[indices] += flattened_depth[indices] * noise
-    
+        
             depth = flattened_depth.view_as(raw_depth)
         else:
             depth = raw_depth
 
-        if (apply_mask):
+        if apply_mask:
             depth = depth * torch.FloatTensor(mask) 
+        else:
+            num_zeros_in_mask = np.count_nonzero(mask == 0)
+            num_elements = depth.numel()
+
+            num_points_to_zero = min(num_zeros_in_mask, num_elements)
+            indices = torch.randperm(num_elements)[:num_points_to_zero]
+
+            flattened_depth = depth.reshape(-1)
+            flattened_depth[indices] = 0
+            depth = flattened_depth.view_as(depth)
 
         return depth
-
-    # def apply_random_mask(self, gt_path):
-    #     # Load ground truth
-    #     gt = self.get_gt(gt_path)
-
-    #     # Randomly select a mask file
-    #     mask_path = random.choice(self.masks)
-    #     mask_raw = np.load(mask_path)
-        
-    #     # Check size and resize if necessary
-    #     if mask_raw.shape != (480, 640):
-    #         # Resize the mask using PIL
-    #         mask_image = Image.fromarray(mask_raw)
-    #         mask_image = mask_image.resize((640, 480), Image.NEAREST)  # Using nearest neighbor to avoid interpolation of binary values
-    #         mask = np.array(mask_image)
-    #     else:
-    #         mask = mask_raw
-        
-    #     # Apply the mask
-    #     masked_gt = gt * torch.FloatTensor(mask)
-
-    #     return masked_gt
-    
 
 class DataLoader_NYU_test(Dataset):
     def __init__(self, data_dir, mode, height=640, width=480, tp_min=50):

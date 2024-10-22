@@ -1,6 +1,8 @@
 # dir
 checkpoints/*
 !checkpoints/.gitkeep
+testModel/*
+!testModel/.gitkeep
 nyuresults/*
 !nyuresults/.gitkeep
 !nyuresults/*.py

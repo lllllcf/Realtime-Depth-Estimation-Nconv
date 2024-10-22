@@ -1,6 +1,6 @@
 # Realtime-Depth-Estimation-Nconv
 
-<img src="./src_imgs/color_output.png" alt="0000000017" style="zoom:70%;" />
+
 
 ## Get Started
 
@@ -37,15 +37,11 @@ conda activate bp3
 
 ## Model
 
-### Overview
-
-There are many files in `./model` and there are even more different experimental models in each file. Basically there are three kinds of models. (`./models/smallModelTwoInput.py` contains latest models)
-
 
 
 ### Step1 Model
 
-Models containing `1`
+`./models/step1.py/SETP1_NCONV`
 
 Input: `raw_depth`
 
@@ -55,119 +51,67 @@ Output: `estimated_depth_step1`
 
 ### Step2 Model
 
-Models containing `2`
+ `./models/step2.py/SETP2_BP_TRAIN`
 
 Input: `estimated_depth_step1` and `rgb_image`
 
 Output: `estimated_depth_step2`
 
-Load checkpoints from step1 and disable training for the step1 unguided model:
-
-```python
-self.step1 = STEP1()
-checkpoint = torch.load("./checkpoints/step1.pth.tar")
-state_dict = checkpoint["state_dict"]
-
-new_state_dict = {}
-for k, v in state_dict.items():
-    name = k[7:] if k.startswith("module.") else k
-    new_state_dict[name] = v
-self.step1.load_state_dict(new_state_dict, strict=False)
-
-# Disable Training for the unguided module
-for p in self.step1.parameters():            
-    p.requires_grad=False
-```
+There are `SETP2_BP_TRAIN` and `SETP2_BP_EXPORT` in `step2.py`. The former is used to train the model, and the latter is used to export the model to onnx.
 
 
 
 ### Model to Export
 
-Models containing `FINAL`
+ `./models/step2.py/SETP2_BP_EXPORT`
 
-Cut some edges based on the camera overlap:
-
-```python
-xout[:, :, :45, :] = 0
-xout[:, :, -45:, :] = 0
-xout[:, :, :, :20] = 0
-```
-
-
+There are `SETP2_BP_TRAIN` and `SETP2_BP_EXPORT` in `step2.py`. The former is used to train the model, and the latter is used to export the model to onnx.
 
 
 
 ## Training
 
-Open `finalTrain.py`
-
-Specify the model you would like to train (When training the step2 model, don’t forget to load and freeze the checkpoint of the step1 model)
+Open `train_step1.py` and specify the following parameters, then run `python train_step1.py`
 
 ```python
-best_model = SMALL_STEP2()
-model = SMALL_STEP2()
+output_name = "test"
+num_train_epoch = 2
+learning_rate = [1e-4]
+weight_decay = [1e-7]
 ```
 
-Specify the output checkpoint file path
+
+
+Open `train_step2.py` and specify the following parameters, then run `python train_step2.py`
 
 ```python
-save_checkpoint(best_model, 1000, "./checkpoints", final_stats)
+output_name = "test2"
+step1_checkpoint_name = "test"
+num_train_epoch = 1
+learning_rate = [1e-4]
+weight_decay = [1e-7]
 ```
 
-Modify this line if you would like to change input and output of the model
 
-```python
-estimated_depth = model(rgb, depth)
-```
-
-Sometimes the validation step will report an error after you change the input and output of the model. In this case, you have to also modify `./utils.get_performance`
-
-Run `python finalTrain.py`
 
 
 
 ## Testing
 
-Open `./testNYU.py`
-
-Specify the model you would like to test and its corresponding checkpoint file.
-
-```pytyhon
-best_model = SMALL_STEP2()
-checkpoint = torch.load("./checkpoints/epoch=100.checkpoint.pth.tar")
-```
-
-Run `python testNYU.py`
-
-Check results in `./nyuresults` folder. (test data is collected from the spot, I didn't split test data from NYUv2)
+I removed the test scripts as they are outdated.
 
 
 
 ## Export to ONNX
 
-Open `./toonnx.py`
-
-Specify the model you would like to export and its corresponding checkpoint file.
+Open `export_to_onnx.py` and specify the following parameters, then run `python export_to_onnx.py`
 
 ```python
-model = SMALL_STEP2()
-checkpoint = torch.load("./checkpoints/epoch=1000.checkpoint.pth.tar")
+step2_checkpoint_name = "test2"
+output_onnx_name = "test"
 ```
 
-Prepare dummy input
 
-```python
-dummy_rgb = torch.randn(1, 3, 480, 640, device='cuda')
-```
-
-specify input and output of onnx
-
-```python
-input_names=['rgb_0', 'depth_0'],
-output_names=['output_depth_0'],
-```
-
-Run `python ./tononnx.py`
 
 
 
