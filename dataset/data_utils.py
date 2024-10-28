@@ -19,7 +19,7 @@ import numpy as np
 from PIL import Image
 
 
-def read_paths(filepath):
+def read_paths(data_dir, filepath):
   '''
   Reads a list of paths from a file
 
@@ -34,7 +34,7 @@ def read_paths(filepath):
       # If there was nothing to read
       if path == '':
         break
-      path_list.append(path)
+      path_list.append(data_dir + path)
 
   return path_list
 

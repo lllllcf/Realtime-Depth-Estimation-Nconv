@@ -6,25 +6,33 @@ from PIL import Image
 import numpy as np
 import os
 import random
-import data_utils
+import dataset.data_utils as data_utils
 
 class DataLoader_VOID(Dataset):
-    def __init__(self, data_dir, use_mask, height=480, width=640):
+    def __init__(self, data_dir, mode,  use_mask, height=480, width=640):
 
-        pose_path = os.path.join(data_dir, 'data/train_absolute_pose.txt')
-        gt_path = os.path.join(data_dir, 'data/train_ground_truth.txt')
-        rgb_path = os.path.join(data_dir, 'data/train_image.txt')
-        intrinsics_path = os.path.join(data_dir, 'data/train_intrinsics.txt')
-        sparse_depth_path = os.path.join(data_dir, 'data/train_sparse_depth.txt')
-        validity_map_path = os.path.join(data_dir, 'data/train_validity_map.txt')
+        if (mode == 'train'):
+            pose_path = os.path.join(data_dir, 'void_1500/train_absolute_pose.txt')
+            gt_path = os.path.join(data_dir, 'void_1500/train_ground_truth.txt')
+            rgb_path = os.path.join(data_dir, 'void_1500/train_image.txt')
+            intrinsics_path = os.path.join(data_dir, 'void_1500/train_intrinsics.txt')
+            sparse_depth_path = os.path.join(data_dir, 'void_1500/train_sparse_depth.txt')
+            validity_map_path = os.path.join(data_dir, 'void_1500/train_validity_map.txt')
+        elif (mode == 'val'):
+            pose_path = os.path.join(data_dir, 'void_1500/test_absolute_pose.txt')
+            gt_path = os.path.join(data_dir, 'void_1500/test_ground_truth.txt')
+            rgb_path = os.path.join(data_dir, 'void_1500/test_image.txt')
+            intrinsics_path = os.path.join(data_dir, 'void_1500/test_intrinsics.txt')
+            sparse_depth_path = os.path.join(data_dir, 'void_1500/test_sparse_depth.txt')
+            validity_map_path = os.path.join(data_dir, 'void_1500/test_validity_map.txt')
 
-        self.poses = data_utils.read_paths(pose_path)
-        self.sparse_depths = data_utils.read_paths(sparse_depth_path)
-        self.gts = data_utils.read_paths(gt_path)
-        self.rgbs = data_utils.read_paths(rgb_path)
-        self.Ks = data_utils.read_paths(intrinsics_path)
+        self.poses = data_utils.read_paths(data_dir, pose_path)
+        self.sparse_depths = data_utils.read_paths(data_dir, sparse_depth_path)
+        self.gts = data_utils.read_paths(data_dir, gt_path)
+        self.rgbs = data_utils.read_paths(data_dir, rgb_path)
+        self.Ks = data_utils.read_paths(data_dir, intrinsics_path)
 
-        mask_path = os.path.join(data_dir, 'mask')
+        mask_path = os.path.join(data_dir, 'void_1500/mask')
         self.masks = list(sorted(glob.iglob(mask_path + "/*.npy", recursive=True)))
 
         self.use_mask = use_mask
@@ -45,11 +53,11 @@ class DataLoader_VOID(Dataset):
 
         if (self.use_mask):
             sparse_depth = self.preprocess_depth(self.gts[index], self.use_mask)
-            sample = {'pose': pose, 'rgb': rgb, 'depth': sparse_depth, 'gt': gt, 'k': k}
+            sample = {'pose': pose, 'rgb': rgb, 'depth': sparse_depth.unsqueeze(0), 'gt': gt.unsqueeze(0), 'k': k}
             return sample
         else:
             sparse_depth = self.preprocess_depth(self.sparse_depths[index], self.use_mask)
-            sample = {'pose': pose, 'rgb': rgb, 'depth': sparse_depth, 'gt': gt, 'k': k}
+            sample = {'pose': pose, 'rgb': rgb, 'depth': sparse_depth.unsqueeze(0), 'gt': gt.unsqueeze(0), 'k': k}
             return sample
     
     def preprocess_depth(self, depth_path, apply_mask):
@@ -84,5 +92,3 @@ class DataLoader_VOID(Dataset):
 
     def get_K(self, k_path):
         return torch.FloatTensor(np.loadtxt(k_path))
-
-    
