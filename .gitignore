@@ -1,6 +1,8 @@
 # dir
 checkpoints/*
 !checkpoints/.gitkeep
+logs/*
+!logs/.gitkeep
 testModel/*
 !testModel/.gitkeep
 nyuresults/*

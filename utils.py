@@ -136,6 +136,9 @@ def gradient_loss(input_img, predicted_img):
     return total_loss
 
 def calculate_loss(reconstructed_img, target_img, use_gradient_loss):
+    mask = (target_img == 0)
+    reconstructed_img = reconstructed_img.masked_fill(mask, 0)
+
     if (use_gradient_loss):
         loss_metric = torch.sqrt(F.mse_loss(reconstructed_img, target_img))      
         #loss_metric = F.l1_loss(reconstructed_img, target_img)

@@ -11,8 +11,8 @@ import time
 import copy
 import matplotlib.pyplot as plt
 
-output_name = "Test"
-num_train_epoch = 1
+output_name = "void_step1_20"
+num_train_epoch = 20
 learning_rate = [1e-2]
 weight_decay = [1e-7]
 apply_mask = True

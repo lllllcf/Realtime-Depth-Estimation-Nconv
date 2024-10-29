@@ -58,11 +58,11 @@ class DataLoader_VOID(Dataset):
 
         if (self.use_mask):
             sparse_depth = self.preprocess_depth(self.gts[index], self.use_mask)
-            sample = {'pose': pose, 'rgb': rgb, 'depth': sparse_depth.unsqueeze(0), 'gt': self.edge_inpainting(gt.unsqueeze(0)), 'k': k}
+            sample = {'pose': pose, 'rgb': rgb, 'depth': sparse_depth, 'gt': self.edge_inpainting(gt), 'k': k}
             return sample
         else:
             sparse_depth = self.preprocess_depth(self.sparse_depths[index], self.use_mask)
-            sample = {'pose': pose, 'rgb': rgb, 'depth': sparse_depth.unsqueeze(0), 'gt': self.edge_inpainting(gt.unsqueeze(0)), 'k': k}
+            sample = {'pose': pose, 'rgb': rgb, 'depth': sparse_depth, 'gt': self.edge_inpainting(gt), 'k': k}
             return sample
     
     def edge_inpainting(self, input_depth):
@@ -127,6 +127,7 @@ class DataLoader_VOID(Dataset):
     
     def preprocess_depth(self, depth_path, apply_mask):
         depth = self.get_sparse_depth(depth_path)
+        depth = self.edge_inpainting(depth)
 
         if apply_mask:
             mask_path = random.choice(self.masks)
@@ -150,10 +151,10 @@ class DataLoader_VOID(Dataset):
         return torch.FloatTensor(cv2.imread(rgb_path)).permute(2, 0, 1)
     
     def get_sparse_depth(self, depth_path):
-        return torch.FloatTensor(data_utils.load_depth(depth_path))
+        return torch.FloatTensor(data_utils.load_depth(depth_path)).unsqueeze(0)
     
     def get_gt(self, gt_path):
-        return torch.FloatTensor(data_utils.load_depth(gt_path))
+        return torch.FloatTensor(data_utils.load_depth(gt_path)).unsqueeze(0)
 
     def get_K(self, k_path):
         return torch.FloatTensor(np.loadtxt(k_path))
