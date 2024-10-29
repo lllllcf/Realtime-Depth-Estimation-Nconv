@@ -8,6 +8,11 @@ import os
 import random
 import dataset.data_utils as data_utils
 
+import torch
+import torch.nn.functional as F
+import numpy as np
+import cv2
+
 class DataLoader_VOID(Dataset):
     def __init__(self, data_dir, mode,  use_mask, height=480, width=640):
 
@@ -19,12 +24,12 @@ class DataLoader_VOID(Dataset):
             sparse_depth_path = os.path.join(data_dir, 'void_1500/train_sparse_depth.txt')
             validity_map_path = os.path.join(data_dir, 'void_1500/train_validity_map.txt')
         elif (mode == 'val'):
-            pose_path = os.path.join(data_dir, 'void_1500/test_absolute_pose.txt')
-            gt_path = os.path.join(data_dir, 'void_1500/test_ground_truth.txt')
-            rgb_path = os.path.join(data_dir, 'void_1500/test_image.txt')
-            intrinsics_path = os.path.join(data_dir, 'void_1500/test_intrinsics.txt')
-            sparse_depth_path = os.path.join(data_dir, 'void_1500/test_sparse_depth.txt')
-            validity_map_path = os.path.join(data_dir, 'void_1500/test_validity_map.txt')
+            pose_path = os.path.join(data_dir, 'void_1500/val_absolute_pose.txt')
+            gt_path = os.path.join(data_dir, 'void_1500/val_ground_truth.txt')
+            rgb_path = os.path.join(data_dir, 'void_1500/val_image.txt')
+            intrinsics_path = os.path.join(data_dir, 'void_1500/val_intrinsics.txt')
+            sparse_depth_path = os.path.join(data_dir, 'void_1500/val_sparse_depth.txt')
+            validity_map_path = os.path.join(data_dir, 'void_1500/val_validity_map.txt')
 
         self.poses = data_utils.read_paths(data_dir, pose_path)
         self.sparse_depths = data_utils.read_paths(data_dir, sparse_depth_path)
@@ -53,12 +58,72 @@ class DataLoader_VOID(Dataset):
 
         if (self.use_mask):
             sparse_depth = self.preprocess_depth(self.gts[index], self.use_mask)
-            sample = {'pose': pose, 'rgb': rgb, 'depth': sparse_depth.unsqueeze(0), 'gt': gt.unsqueeze(0), 'k': k}
+            sample = {'pose': pose, 'rgb': rgb, 'depth': sparse_depth.unsqueeze(0), 'gt': self.edge_inpainting(gt.unsqueeze(0)), 'k': k}
             return sample
         else:
             sparse_depth = self.preprocess_depth(self.sparse_depths[index], self.use_mask)
-            sample = {'pose': pose, 'rgb': rgb, 'depth': sparse_depth.unsqueeze(0), 'gt': gt.unsqueeze(0), 'k': k}
+            sample = {'pose': pose, 'rgb': rgb, 'depth': sparse_depth.unsqueeze(0), 'gt': self.edge_inpainting(gt.unsqueeze(0)), 'k': k}
             return sample
+    
+    def edge_inpainting(self, input_depth):
+
+        depth = input_depth
+        if depth.dim() == 2:
+            depth = depth.unsqueeze(0)  # Add channel dimension if missing
+
+        depth = depth.unsqueeze(0)  # Add batch dimension: Shape (1, C, H, W)
+
+        # --- Edge Detection using Sobel Operator in PyTorch ---
+        sobel_kernel_x = torch.tensor([[[-1, 0, 1],
+                                        [-2, 0, 2],
+                                        [-1, 0, 1]]], dtype=torch.float32).to(depth.device)
+        sobel_kernel_y = torch.tensor([[[-1, -2, -1],
+                                        [0, 0, 0],
+                                        [1, 2, 1]]], dtype=torch.float32).to(depth.device)
+
+        sobel_kernel_x = sobel_kernel_x.unsqueeze(0)  # Shape: (1, 1, 3, 3)
+        sobel_kernel_y = sobel_kernel_y.unsqueeze(0)  # Shape: (1, 1, 3, 3)
+
+        # Compute gradients along the X and Y axes
+        grad_x = F.conv2d(depth, sobel_kernel_x, padding=1)
+        grad_y = F.conv2d(depth, sobel_kernel_y, padding=1)
+
+        # Compute the gradient magnitude (edge strength)
+        edge_magnitude = torch.sqrt(grad_x ** 2 + grad_y ** 2)
+
+        edge_magnitude_norm = edge_magnitude.squeeze(0).squeeze(0)  # Shape: (H, W)
+
+        threshold_value = 0.5  # Adjust this value as needed
+        edge_map = (edge_magnitude_norm > threshold_value).float()  # Binary edge map
+
+            # --- Edge Removal ---
+        non_edge_mask = 1.0 - edge_map  # Invert edge map
+        depth_no_edges = depth.squeeze(0) * non_edge_mask  # Apply mask to depth map
+
+        depth_no_edges = depth_no_edges.unsqueeze(0)  # Add batch dimension back
+
+        # return depth_no_edges  # Return the inpainted depth map with batch dimension
+
+            # --- Inpainting with Nearest Neighbor after Edge Removal ---
+        non_edge_mask = (edge_map).numpy().astype(np.uint8)  # Convert mask to uint8
+        depth_no_edges = depth.squeeze(0).squeeze(0).numpy()  # Convert tensor to numpy
+
+        # inpainted_depth = cv2.inpaint(depth_no_edges, non_edge_mask, 3, cv2.INPAINT_TELEA)
+        inpainted_depth = self.inpaint_with_nearest(depth_no_edges, non_edge_mask)
+
+        return torch.tensor(inpainted_depth).unsqueeze(0)
+    
+    def inpaint_with_nearest(self, depth_map, mask):
+        # Convert the mask to binary (0 or 255)
+        mask = (mask * 255).astype(np.uint8)
+
+        # Use dilation to expand the nearest pixel values into the masked area
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        inpainted = depth_map.copy()
+        for i in range(5):  # Increase the number of iterations for larger holes
+            inpainted[mask == 255] = cv2.dilate(inpainted, kernel)[mask == 255]
+
+        return inpainted
     
     def preprocess_depth(self, depth_path, apply_mask):
         depth = self.get_sparse_depth(depth_path)

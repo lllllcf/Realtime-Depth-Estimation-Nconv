@@ -46,8 +46,8 @@ def train_model(model, train_loader, val_loader, num_epoch, parameter, patience,
         model.train()
         loss_train = []
         for batch, data in enumerate(train_loader):
-            if (batch > 600):
-                break
+            # if (batch > 600):
+            #     break
 
             rgb = data['rgb'].to(device, non_blocking=True)
             depth = data['depth'].to(device, non_blocking=True)
