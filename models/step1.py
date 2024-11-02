@@ -4,19 +4,14 @@ import torch.nn.functional as F
 import numpy as np
 import functools
 from .utils import *
-from torch.cuda.amp import custom_fwd, custom_bwd
 # from .nconv import *
-import torchvision.transforms as transforms
-import torchvision.transforms.functional as TF
 import cv2
 import torch
 import torch.nn.functional as F
-from torch.nn.parameter import Parameter
 from torch.nn.modules.conv import _ConvNd
 import numpy as np
 from scipy.stats import poisson
 from scipy import signal
-import torch.nn as nn
 
 class SETP1_NCONV(nn.Module):
     def __init__(self):
@@ -27,10 +22,13 @@ class SETP1_NCONV(nn.Module):
             
     def forward(self, x0_d0, x0_d1): 
 
-        x0_d = torch.cat((x0_d0, x0_d1), dim=0)
+        # Interleave tensors
+        # shape = x0_d0.shape
+        # x0_d = torch.cat((x0_d0, x0_d1), dim=1).view((shape[0]*2, shape[1], shape[2], shape[3]))
+
         
         # Depth Network
-        xout_d = self.d_net(x0_d)
+        xout_d = self.d_net(x0_d0)
         
         return xout_d
 
@@ -64,22 +62,20 @@ class DNET(nn.Module):
         x1, c1 = self.nconv1(x0, c0)
         x1, c1 = self.nconv2(x1, c1)
 
-
         # Downsample 1
         ds = 2
-        c1_ds, _ = F.max_pool2d(c1, ds, ds, return_indices=True)
-
-        x1_ds, _ = F.max_pool2d(x1, ds, ds, return_indices=True)
+        c1_ds = F.max_pool2d(c1, ds, ds)
+        x1_ds = F.max_pool2d(x1, ds, ds)
         x2_ds, c2_ds = self.nconv_down1(x1_ds, c1_ds)                
 
         # Downsample 2
-        c2_dss, _ = F.max_pool2d(c2_ds, ds, ds, return_indices=True)
-        x2_dss, _ = F.max_pool2d(x2_ds, ds, ds, return_indices=True)
+        c2_dss = F.max_pool2d(c2_ds, ds, ds)
+        x2_dss = F.max_pool2d(x2_ds, ds, ds)
         x3_ds, c3_ds = self.nconv_down2(x2_dss, c2_dss)        
 
         # Downsample 3
-        c3_dss, _ = F.max_pool2d(c3_ds, ds, ds, return_indices=True)
-        x3_dss, _ = F.max_pool2d(x3_ds, ds, ds, return_indices=True)
+        c3_dss = F.max_pool2d(c3_ds, ds, ds)
+        x3_dss = F.max_pool2d(x3_ds, ds, ds)
         x4_ds, c4_ds = self.nconv_down3(x3_dss, c3_dss)                
 
         # Upsample 1
@@ -99,6 +95,7 @@ class DNET(nn.Module):
 
         xout, cout = self.nconv7(xout, cout)
 
+        #breakpoint()
         return xout[:, :, 1:481, 1:641]
 
 
@@ -125,21 +122,25 @@ class NConv2d(_ConvNd):
         
         # Normalized Convolution
         denom = F.conv2d(conf, self.weight, None, self.stride,
-                        self.padding, self.dilation, self.groups)        
+                        self.padding, self.dilation, self.groups)   
+        # denom = self.bnorm(denom)
+        # denom = self.relu(denom)     
+        
         nomin = F.conv2d(data*conf, self.weight, None, self.stride,
-                        self.padding, self.dilation, self.groups)        
+                        self.padding, self.dilation, self.groups)  
+
+
+        # nomin = self.bnorm(nomin)
+        #nomin = self.relu(nomin)
+
         nconv = nomin / (denom+self.eps)
         
-        
         # Add biasf
-        b = self.bias
-        sz = b.size(0)
-        b = b.view(1,sz,1,1)
-        b = b.expand_as(nconv)
-        nconv += b
-
-        # nconv = self.bnorm(nconv)
-        # nconv = self.relu(nconv)
+        bias = self.bias
+        sz = bias.size(0)
+        bias = bias.view(1,sz,1,1)
+        bias = bias.expand_as(nconv)
+        nconv += bias
         
         # Propagate confidence
         cout = denom

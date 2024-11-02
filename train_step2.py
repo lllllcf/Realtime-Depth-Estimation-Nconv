@@ -33,6 +33,7 @@ def train_model(model, train_loader, val_loader, num_epoch, parameter, patience,
 
     optim = get_optimizer(model, parameter["optim_type"], parameter["lr"], parameter["weight_decay"])
     scheduler = torch.optim.lr_scheduler.LinearLR(optim, start_factor=1.0, end_factor=0, total_iters=num_epoch)
+    #scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, mode="min", factor=0.1, patience=patience)
 
     print('------------------------ Start Training ------------------------')
     t_start = time.time()
@@ -43,7 +44,7 @@ def train_model(model, train_loader, val_loader, num_epoch, parameter, patience,
         for batch, data in enumerate(train_loader):
 
             if (batch % 100 == 0 and batch != 0):
-                print('Batch No. {0}'.format(batch))
+                #print('Batch No. {0}'.format(batch))
 
                 save_depth((estimated_depths[3][0, 0, :, :]).detach().cpu().numpy(), 'tmp/color_output.png')
                 save_depth((depth[0, 0, :, :]).detach().cpu().numpy(), 'tmp/color_sparse.png')
@@ -95,6 +96,10 @@ def train_model(model, train_loader, val_loader, num_epoch, parameter, patience,
 
         # learning rate scheduler
         scheduler.step()
+        #scheduler.step(val_loss)
+        
+        print("Current learning rate: {:.9f}".format(scheduler.get_last_lr()[0]))
+
 
     t_end = time.time()
     print('Training lasted {0:.2f} minutes'.format((t_end - t_start) / 60))

@@ -26,7 +26,8 @@ class SETP2_BP_TRAIN(nn.Module):
 
         self.step1 = SETP1_NCONV()
 
-        checkpoint = torch.load("./checkpoints/{}.pth.tar".format(step1_checkpoint_name))
+       # checkpoint = torch.load("./checkpoints/{}.pth.tar".format(step1_checkpoint_name))
+        checkpoint = torch.load("checkpoint-step1-val-0.1649/Test.pth.tar")
         state_dict = checkpoint["state_dict"]
 
         new_state_dict = {}

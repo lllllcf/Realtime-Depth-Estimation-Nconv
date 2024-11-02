@@ -33,7 +33,7 @@ def get_performance(model, val_loader, device_str, use_gradient_loss):
             k = data['k'].to(device)
 
             estimated_depth = model(depth, depth)
-            loss = calculate_loss(estimated_depth[0, :, :, :], gt[0, :, :, :], use_gradient_loss)
+            loss = calculate_loss(estimated_depth[:, :, :, :], gt[:, :, :, :], use_gradient_loss)
             loss_all.append(loss.item())
 
     val_loss = sum(loss_all) / len(loss_all)

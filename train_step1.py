@@ -1,9 +1,11 @@
-from dataset.nyuloader import *
+from dataset.nyuloader import DataLoader_NYU, DataLoader_NYU_nomask
+from dataset.maskloader import MaskLoader
 from models.step1 import SETP1_NCONV
 from utils import *
 from torch import nn
 import numpy as np
 import torch.optim as optimizer
+from torch.profiler import profile, record_function, ProfilerActivity
 import cv2
 import torch
 import torch.nn.functional as F
@@ -21,8 +23,7 @@ use_gradient_loss = True
 use_plateau_lr_sched = True
 early_stopping = False
 
-def train_model(model, train_loader, val_loader, num_epoch, parameter, patience, device_str):
-    device = torch.device(device_str if device_str == 'cuda' and torch.cuda.is_available() else 'cpu')
+def train_model(model, train_loader, val_loader, mask_dataset, num_epoch, parameter, patience, device):
     model.to(device)
     #model = torch.compile(model)
 
@@ -41,45 +42,62 @@ def train_model(model, train_loader, val_loader, num_epoch, parameter, patience,
     t_start = time.time()
     t_step  = t_start
     loss = 0
-    loss_train = []
+    loss_train = [] 
+
+    batch_size = train_loader.batch_size
+    num_masks = len(mask_dataset)
+
     for epoch in range(num_epoch):
         model.train()
         loss_train = []
-        for batch, data in enumerate(train_loader):
-            # if (batch > 600):
-            #     break
+        
+        with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True) as prof:
+            for batch, data in enumerate(train_loader):
 
-            rgb = data['rgb'].to(device, non_blocking=True)
-            depth = data['depth'].to(device, non_blocking=True)
-            gt = data['gt'].to(device, non_blocking=True)
-            k = data['k'].to(device, non_blocking=True)
+                #rgb = data['rgb'].to(device, non_blocking=True)
+                depth = data['depth'].to(device, non_blocking=True)
+                gt = data['gt'].to(device, non_blocking=True)
+                #k = data['k'].to(device, non_blocking=True)
 
-            num_itration += 1
 
-            model.train()
-            optim.zero_grad()
-            estimated_depth = model(depth, depth)
-            
-            loss = calculate_loss(estimated_depth[0::2, :, :, :], gt, use_gradient_loss)
-            loss.requires_grad_().backward()
-            optim.step()
+                if (apply_mask):
+                    mask_idx = torch.randint(num_masks, (batch_size,))
+                    masks = mask_dataset[mask_idx]
+                    masks = masks.unsqueeze(1)  # create a channel dim
+                    depth *= masks
 
-            # loss_all.append(np.sqrt(loss.item()))
-            # loss_train.append(np.sqrt(loss.item()))
-            loss_all.append(loss.item())
-            loss_train.append(loss.item())
-            loss_index.append(num_itration)
-            
-            if (batch % (100 // train_loader.batch_size) == 0 and batch != 0):
-                print('Batch No. {0}'.format(batch))
-                t_end = time.time()
-                print('Delta time {0:.4f} seconds'.format(t_end - t_step))
-                t_step = time.time()
-                save_depth((estimated_depth[0, 0, :, :]).detach().cpu().numpy(), 'tmp/color_output.png')
-                save_depth((depth[0, 0, :, :]).detach().cpu().numpy(), 'tmp/color_sparse.png')
-                save_depth((gt[0, 0, :, :]).detach().cpu().numpy(), 'tmp/color_gt.png')
-                # save_depth((confidence[0, 0, :, :]).detach().cpu().numpy(), 'tmp/color_confidence.png')
+                num_itration += 1
 
+                model.train()
+                optim.zero_grad()
+                estimated_depth = model(depth, depth)
+                
+                loss = calculate_loss(estimated_depth, gt, use_gradient_loss)
+                loss.requires_grad_().backward()
+                optim.step()
+        
+
+                # loss_all.append(np.sqrt(loss.item()))
+                # loss_train.append(np.sqrt(loss.item()))
+                loss_all.append(loss.item())
+                loss_train.append(loss.item())
+                loss_index.append(num_itration)
+                
+                if (batch % (100 // train_loader.batch_size) == 0 and batch != 0):
+                    print('Batch No. {0}'.format(batch))
+                    t_end = time.time()
+                    print('Delta time {0:.4f} seconds'.format(t_end - t_step))
+                    t_step = time.time()
+                    # save_depth((estimated_depth[0, 0, :, :]).detach().cpu().numpy(), 'tmp/color_output.png')
+                    # save_depth((depth[0, 0, :, :]).detach().cpu().numpy(), 'tmp/color_sparse.png')
+                    # save_depth((gt[0, 0, :, :]).detach().cpu().numpy(), 'tmp/color_gt.png')
+                    # save_depth((confidence[0, 0, :, :]).detach().cpu().numpy(), 'tmp/color_confidence.png')
+                    break
+
+
+
+        print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=25))
+        #prof.export_chrome_trace("trace.json")
 
         print('Epoch No. {0} -- loss = {1:.4f}'.format(
             epoch + 1,
@@ -124,25 +142,47 @@ def train_model(model, train_loader, val_loader, num_epoch, parameter, patience,
 
     return best_model, best_val_loss, stats
     
+global_device_str = 'cuda'
+
+if global_device_str == 'cuda':
+    if not torch.cuda.is_available():
+        print("WARNING: CUDA unavailable")
+        global_device_str = 'cpu'
+    else:
+        print(f"Running pytorch with CUDA v{torch.version.cuda}")
+
 def get_hyper_parameters(lr, wd):
+    global global_device_str
+
     _para_list = [{"optim_type": 'adam', 'lr': lr, "weight_decay": wd, "store_img_training": True}]
     _num_epoch = num_train_epoch
     _patience = 2
-    _device = 'cuda'
+    _device = global_device_str
     return _para_list, _num_epoch, _patience, _device
 
+#### Main
+
+train_batch_size = 4
 
 best_val_loss = float('inf')
 best_model = SETP1_NCONV()
 best_lr = 0
 best_wd = 0
 final_stats = {}
+
+device = torch.device(global_device_str)
+
+train_dataset = DataLoader_NYU_nomask('/oscar/data/jtompki1/cli277/nyuv2/nyuv2', 'train', apply_mask, add_noise)
+train_loader = DataLoader(train_dataset, batch_size=train_batch_size, shuffle=True, pin_memory=True)
+val_dataset = DataLoader_NYU('/oscar/data/jtompki1/cli277/nyuv2/nyuv2', 'val', apply_mask, add_noise)
+val_loader = DataLoader(val_dataset, batch_size=1, shuffle=True, pin_memory=True)
+
+mask_dataset = MaskLoader('/oscar/data/jtompki1/cli277/nyuv2/nyuv2/mask', device)
+
+
 for lr in learning_rate:
     for wd in weight_decay:
-        train_dataset = DataLoader_NYU('/oscar/data/jtompki1/cli277/nyuv2/nyuv2', 'train', apply_mask, add_noise)
-        train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True, pin_memory=True)
-        val_dataset = DataLoader_NYU('/oscar/data/jtompki1/cli277/nyuv2/nyuv2', 'val', apply_mask, add_noise)
-        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=True, pin_memory=True)
+        para_list, num_epoch, patience, device_str = get_hyper_parameters(lr, wd)
 
         print('Train size: ' + str(len(train_loader)))
         print('Val size: ' + str(len(val_loader)))  
@@ -150,10 +190,9 @@ for lr in learning_rate:
         print('Weight Decay: ' + str(wd))  
 
         model = SETP1_NCONV()
-        model = nn.DataParallel(model)
-        para_list, num_epoch, patience, device_str = get_hyper_parameters(lr, wd)
+        #model = nn.DataParallel(model)
 
-        new_model, val_loss, stats = train_model(model, train_loader, val_loader, num_epoch, para_list[0], patience, device_str)
+        new_model, val_loss, stats = train_model(model, train_loader, val_loader, mask_dataset, num_epoch, para_list[0], patience, device_str)
 
         if (val_loss < best_val_loss):
             best_model = copy.deepcopy(new_model)
