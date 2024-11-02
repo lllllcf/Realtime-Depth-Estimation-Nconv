@@ -1,4 +1,4 @@
-from dataset.nyuloader import *
+from dataset.nyuloader import DataLoader_NYU
 from models.step1 import SETP1_NCONV
 from utils import *
 from torch import nn
@@ -49,18 +49,18 @@ def train_model(model, train_loader, val_loader, num_epoch, parameter, patience,
             # if (batch > 600):
             #     break
 
-            rgb = data['rgb'].to(device, non_blocking=True)
+            #rgb = data['rgb'].to(device, non_blocking=True)
             depth = data['depth'].to(device, non_blocking=True)
             gt = data['gt'].to(device, non_blocking=True)
-            k = data['k'].to(device, non_blocking=True)
+            #k = data['k'].to(device, non_blocking=True)
 
             num_itration += 1
 
             model.train()
             optim.zero_grad()
-            estimated_depth = model(depth, depth)
+            estimated_depth = model(depth)
             
-            loss = calculate_loss(estimated_depth[0::2, :, :, :], gt, use_gradient_loss)
+            loss = calculate_loss(estimated_depth, gt, use_gradient_loss)
             loss.requires_grad_().backward()
             optim.step()
 
@@ -140,7 +140,7 @@ final_stats = {}
 for lr in learning_rate:
     for wd in weight_decay:
         train_dataset = DataLoader_NYU('/oscar/data/jtompki1/cli277/nyuv2/nyuv2', 'train', apply_mask, add_noise)
-        train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True, pin_memory=True)
+        train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, pin_memory=True)
         val_dataset = DataLoader_NYU('/oscar/data/jtompki1/cli277/nyuv2/nyuv2', 'val', apply_mask, add_noise)
         val_loader = DataLoader(val_dataset, batch_size=1, shuffle=True, pin_memory=True)
 
