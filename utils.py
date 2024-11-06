@@ -27,12 +27,12 @@ def get_performance(model, val_loader, device_str, use_gradient_loss):
             # if (batch % 50 == 0 and batch != 0):
             #     print('Val Batch No. {0}'.format(batch))
 
-            rgb = data['rgb'].to(device)
+            #rgb = data['rgb'].to(device)
             depth = data['depth'].to(device)
             gt = data['gt'].to(device)
-            k = data['k'].to(device)
+            #k = data['k'].to(device)
 
-            estimated_depth = model(depth, depth)
+            estimated_depth = model(depth)
             loss = calculate_loss(estimated_depth[0, :, :, :], gt[0, :, :, :], use_gradient_loss)
             loss_all.append(loss.item())
 

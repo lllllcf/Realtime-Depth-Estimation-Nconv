@@ -4,19 +4,13 @@ import torch.nn.functional as F
 import numpy as np
 import functools
 from .utils import *
-from torch.cuda.amp import custom_fwd, custom_bwd
-# from .nconv import *
-import torchvision.transforms as transforms
-import torchvision.transforms.functional as TF
 import cv2
 import torch
 import torch.nn.functional as F
-from torch.nn.parameter import Parameter
 from torch.nn.modules.conv import _ConvNd
 import numpy as np
 from scipy.stats import poisson
 from scipy import signal
-import torch.nn as nn
 
 class SETP1_NCONV(nn.Module):
     def __init__(self):
@@ -25,13 +19,11 @@ class SETP1_NCONV(nn.Module):
         self.d_net = DNET(32)
                
             
-    def forward(self, x0_d0, x0_d1): 
+    def forward(self, x0_d): 
 
-        x0_d = torch.cat((x0_d0, x0_d1), dim=0)
-        
         # Depth Network
         xout_d = self.d_net(x0_d)
-        
+
         return xout_d
 
 
@@ -67,19 +59,19 @@ class DNET(nn.Module):
 
         # Downsample 1
         ds = 2
-        c1_ds, _ = F.max_pool2d(c1, ds, ds, return_indices=True)
+        c1_ds = F.max_pool2d(c1, ds, ds)
 
-        x1_ds, _ = F.max_pool2d(x1, ds, ds, return_indices=True)
+        x1_ds = F.max_pool2d(x1, ds, ds)
         x2_ds, c2_ds = self.nconv_down1(x1_ds, c1_ds)                
 
         # Downsample 2
-        c2_dss, _ = F.max_pool2d(c2_ds, ds, ds, return_indices=True)
-        x2_dss, _ = F.max_pool2d(x2_ds, ds, ds, return_indices=True)
+        c2_dss = F.max_pool2d(c2_ds, ds, ds)
+        x2_dss = F.max_pool2d(x2_ds, ds, ds)
         x3_ds, c3_ds = self.nconv_down2(x2_dss, c2_dss)        
 
         # Downsample 3
-        c3_dss, _ = F.max_pool2d(c3_ds, ds, ds, return_indices=True)
-        x3_dss, _ = F.max_pool2d(x3_ds, ds, ds, return_indices=True)
+        c3_dss = F.max_pool2d(c3_ds, ds, ds)
+        x3_dss = F.max_pool2d(x3_ds, ds, ds)
         x4_ds, c4_ds = self.nconv_down3(x3_dss, c3_dss)                
 
         # Upsample 1
@@ -132,11 +124,11 @@ class NConv2d(_ConvNd):
         
         
         # Add biasf
-        b = self.bias
-        sz = b.size(0)
-        b = b.view(1,sz,1,1)
-        b = b.expand_as(nconv)
-        nconv += b
+        bias = self.bias
+        sz = bias.size(0)
+        bias = bias.view(1,sz,1,1)
+        bias = bias.expand_as(nconv)
+        nconv += bias
 
         # nconv = self.bnorm(nconv)
         # nconv = self.relu(nconv)
