@@ -1,6 +1,7 @@
 from models.step2 import SETP2_BP_EXPORT
 from test_data_loader import TEST_DataLoader_NYU
 from torch.utils.data import Dataset, DataLoader
+from eval import Evaluator
 import torch
 from torch import nn
 import numpy as np
@@ -70,7 +71,7 @@ for batch, data in enumerate(test_loader):
     # To match bin files with gt_bin? 
     # print(str(batch))
     # new_file_path = "./{}/{}".format(output_folder, str(batch))
-    new_file_path = "./{}/{}".format(output_folder, str(batch_to_original_data_idx[batch]))
+    new_file_path = "./{}/{}/{}".format(output_folder, checkpoint_path, str(batch_to_original_data_idx[batch]))
     # Save to binary file
     with open(new_file_path, 'wb') as f:
         # Write the length of the data as a 4-byte integer (header)
@@ -80,8 +81,6 @@ for batch, data in enumerate(test_loader):
         # Write the depth data as float32 values
         f.write(depth_data_flat.astype(np.float32).tobytes())
 
-    # save_all(output_folder, batch, estimated_depths, depth, gt, rgb)
-    # save_depth((estimated_depths[0, 0, :, :]).detach().cpu().numpy(), "./{}/depth_output{}.png".format(output_folder, str(batch)))
-    # save_depth((depth[0, 0, :, :]).detach().cpu().numpy(), "./{}/depth_input{}.png".format(output_folder, str(batch)))
-    # save_depth((gt[0, 0, :, :]).detach().cpu().numpy(), "./{}/depth_gt{}.png".format(output_folder, str(batch)))
-
+bin_path = "./{}/{}/".format(output_folder, checkpoint_path)
+eval = Evaluator(bin_path)
+eval.calculate_loss()
