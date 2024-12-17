@@ -43,17 +43,17 @@ class Evaluator():
             for i in range(len(self.our_depth_list)):
                 # Load and save "our images"
                 self.our_images.append(self.load_depth_from_binary(self.our_depth_list[i]))
-                # plt.imshow(self.our_images[-1])
-                # our_image_path = os.path.join(self.output_dir, f"our_image_{i}.png")
-                # plt.savefig(our_image_path)
-                # plt.close()
+                plt.imshow(self.our_images[-1])
+                our_image_path = os.path.join(self.output_dir, f"our_image_{i}.png")
+                plt.savefig(our_image_path)
+                plt.close()
 
                 # Load, crop, and save "gt images"
                 self.gt_images.append(self.crop_image(self.load_depth_from_binary(self.gt_depth_list[i])))
-                # plt.imshow(self.gt_images[-1])
-                # gt_image_path = os.path.join(self.output_dir, f"gt_image_{i}.png")
-                # plt.savefig(gt_image_path)
-                # plt.close()
+                plt.imshow(self.gt_images[-1])
+                gt_image_path = os.path.join(self.output_dir, f"gt_image_{i}.png")
+                plt.savefig(gt_image_path)
+                plt.close()
     
     def crop_image(self, img):
         img[:45, :] = 0

@@ -1,4 +1,5 @@
-from models.step2 import SETP2_BP_EXPORT
+from models.without_step1.step2 import SETP2_BP_EXPORT as step2_without_step1
+from models.without_masks.step2 import SETP2_BP_EXPORT as step2_without_mask
 from test_data_loader import TEST_DataLoader_NYU
 from torch.utils.data import Dataset, DataLoader
 from eval import Evaluator
@@ -11,10 +12,10 @@ import torch.nn.functional as F
 import time
 import copy
 from scipy.ndimage import median_filter
-from models.step1 import SETP1_NCONV
+from models.without_step1.step1 import SETP1_NCONV as step_1
 
 #Modify this
-checkpoint_path = "without_step1"
+checkpoint_path = "Test"
 output_folder = "ours"
 
 test_dataset = TEST_DataLoader_NYU('/oscar/data/jtompki1/cli277/new_spot_data', '1')
@@ -22,7 +23,19 @@ batch_to_original_data_idx = test_dataset.get_original_data_idx()
 test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
 # model = SETP2_BP_EXPORT()
-model = SETP2_BP_EXPORT()
+if checkpoint_path == "without_step1":
+    model = step2_without_step1()
+
+elif checkpoint_path == "without_mask" or checkpoint_path == "baseline2"  :
+    model = step2_without_mask()
+
+elif checkpoint_path == "Test":
+    model = step_1()
+
+else:
+    print('Error: no corresponding model found')
+
+# model = step2_without_step1()
 model.eval()
 checkpoint = torch.load("./model_checkpoints/{}.pth.tar".format(checkpoint_path))
 
@@ -62,7 +75,15 @@ for batch, data in enumerate(test_loader):
     depth = data['depth'].to(device)
     gt = data['gt'].to(device)
 
-    estimated_depths, _ = model(rgb, depth, rgb, depth)
+    if checkpoint_path == "Test":
+        estimated_depths = model(depth)
+        print('just using step1')
+
+
+    else: 
+        estimated_depths, _ = model(rgb, depth, rgb, depth)
+        print('using step1 and step2')
+    
 
     depth_data = (estimated_depths[0, 0, :, :]).detach().cpu().numpy()
 

@@ -59,8 +59,9 @@ class SETP2_BP_TRAIN(nn.Module):
             
     def forward(self, rgb0, depth0, rgb1, depth1): 
         
-        sparse = self.step1(depth0, depth1)
+        sparse = self.step1(depth0)
         rgb = torch.cat((rgb0, rgb1), dim=0)
+        sparse = torch.cat((sparse, sparse), dim=0)
 
         rgb0 = self.rgb_encoder0(rgb)
         rgb1 = self.rgb_encoder1(rgb0) # 480 -> 240
@@ -104,9 +105,10 @@ class SETP2_BP_EXPORT(nn.Module):
             
     def forward(self, rgb0, depth0, rgb1, depth1): 
         
-        sparse = self.step1(depth0, depth1)
+        sparse = self.step1(depth0)
         rgb = torch.cat((rgb0, rgb1), dim=0)
-
+        sparse = torch.cat((sparse, sparse), dim=0)
+        
         rgb0 = self.rgb_encoder0(rgb)
         rgb1 = self.rgb_encoder1(rgb0) # 480 -> 240
         rgb2 = self.rgb_encoder2(rgb1) # 240 -> 120

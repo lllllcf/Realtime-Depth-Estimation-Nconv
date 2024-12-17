@@ -20,7 +20,7 @@ step1 = SETP1_NCONV()
 
 ##################################################################################
 #load checkpoints
-step2_checkpoint_name = "without_step1"
+step2_checkpoint_name = "baseline2"
 step2.eval()
 step2_checkpoint = torch.load("./checkpoints/{}.pth.tar".format(step2_checkpoint_name))
 state_dict = step2_checkpoint["state_dict"]
@@ -109,7 +109,8 @@ gt = get_gt(gt_path=npy_depth_path).unsqueeze(0).to(device)
 estimated_depths, _ = step2(rgb, depth, rgb, depth)
 # estimated_depths = step1(depth)
 
-save_depth((estimated_depths[0, 0, :, :]).detach().cpu().numpy(), 'weight_variation/model_var/without_step_1/color_output' + alpha + '.png')
+save_depth((estimated_depths[0, 0, :, :]).detach().cpu().numpy(), 'weight_variation/model_var/baseline/color_output' + alpha + '.png')
+print('saved image to' + 'weight_variation/model_var/without_mask/color_output' + alpha + '.png' )
 save_depth((depth[0, 0, :, :]).detach().cpu().numpy(), 'weight_variation/color_sparse.png')
 save_depth((rgb[0, 0, :, :]).detach().cpu().numpy(), 'weight_variation/color_img.png')
 

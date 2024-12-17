@@ -11,12 +11,13 @@ import time
 import copy
 import matplotlib.pyplot as plt
 
-output_name = "baseline2"
-step1_checkpoint_name = "BaselineMask/baselineWithMask"
+output_name = "without_mask"
+step1_checkpoint_name = "Test"
+print('we are training without masks')
 num_train_epoch = 50
 learning_rate = [1e-4]
 weight_decay = [1e-7]
-apply_mask = True
+apply_mask = False
 add_noise = False
 use_gradient_loss = False
 

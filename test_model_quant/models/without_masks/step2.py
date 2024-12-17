@@ -16,7 +16,7 @@ import numpy as np
 from scipy.stats import poisson
 from scipy import signal
 import torch.nn as nn
-from models.step1 import SETP1_NCONV
+from models.without_masks.step1 import SETP1_NCONV
 
 
 class SETP2_BP_TRAIN(nn.Module):
@@ -59,15 +59,10 @@ class SETP2_BP_TRAIN(nn.Module):
             
     def forward(self, rgb0, depth0, rgb1, depth1): 
         
-        
-
-        
-        #sparse = self.step1(depth0)
-        sparse = depth0
-
+        sparse = self.step1(depth0)
         rgb = torch.cat((rgb0, rgb1), dim=0)
         sparse = torch.cat((sparse, sparse), dim=0)
-        # breakpoint()
+
         rgb0 = self.rgb_encoder0(rgb)
         rgb1 = self.rgb_encoder1(rgb0) # 480 -> 240
         rgb2 = self.rgb_encoder2(rgb1) # 240 -> 120
@@ -110,11 +105,10 @@ class SETP2_BP_EXPORT(nn.Module):
             
     def forward(self, rgb0, depth0, rgb1, depth1): 
         
-        # sparse = self.step1(depth0)
-        sparse = depth0
+        sparse = self.step1(depth0)
         rgb = torch.cat((rgb0, rgb1), dim=0)
         sparse = torch.cat((sparse, sparse), dim=0)
-
+        
         rgb0 = self.rgb_encoder0(rgb)
         rgb1 = self.rgb_encoder1(rgb0) # 480 -> 240
         rgb2 = self.rgb_encoder2(rgb1) # 240 -> 120
