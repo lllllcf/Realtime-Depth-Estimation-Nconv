@@ -62,22 +62,80 @@ class Evaluator():
         return img
 
     def calculate_loss(self):
-        loss_fn = nn.L1Loss()
-        avg_loss = 0
-        highest_loss = 0
+        l1_loss_fn = nn.L1Loss()
+        avg_l1_loss = 0
+        highest_l1_loss = 0
+
+        mse_loss_fn = nn.MSELoss()
+        avg_mse_loss = 0
+        highest_mse_loss = 0
+
+        avg_rmse_loss = 0
+        highest_rmse_loss = 0
+
+        avg_irmse_loss = 0
+        highest_irmse_loss = 0
+
+        avg_imae_loss = 0
+        highest_imae_loss = 0
+
+
+
         for i in range(len(self.our_images)):
             our_image = torch.tensor(self.our_images[i], dtype=torch.float32)
             gt_image = torch.tensor(self.gt_images[i], dtype=torch.float32)
-            loss = loss_fn(our_image,gt_image)
-            avg_loss += loss
-            if loss > highest_loss:
-                highest_loss = loss
-            
-            print("Cuurent epoch:{}, loss:{}, heighest loss{}".format(i, loss, highest_loss))
+            inv_our_image = 1.0 / (our_image + 1e-6)
+            inv_gt_image = 1.0 / (gt_image + 1e-6)
 
-        avg_loss = avg_loss/len(self.our_images)
-        print("Total samples:{}, Avg loss:{}, heighest loss{}".format(i, avg_loss, highest_loss))
-        return avg_loss, highest_loss
+
+
+
+            loss = l1_loss_fn(our_image,gt_image)
+            mse_loss = mse_loss_fn(our_image,gt_image)
+            rmse_loss = torch.sqrt(mse_loss)
+            imae_loss = l1_loss_fn(inv_our_image, inv_gt_image)
+            imse_loss = mse_loss_fn(inv_our_image,inv_gt_image)
+            irmse_loss = torch.sqrt(imse_loss)
+
+            avg_l1_loss += loss
+            avg_mse_loss += mse_loss
+            avg_rmse_loss += rmse_loss
+            avg_imae_loss += imae_loss
+            avg_irmse_loss += irmse_loss
+            
+
+            if loss > highest_l1_loss:
+                highest_l1_loss = loss
+
+            if mse_loss > highest_mse_loss:
+                highest_mse_loss = mse_loss
+
+            if rmse_loss > highest_rmse_loss:
+                highest_rmse_loss = rmse_loss
+
+            if imae_loss > highest_imae_loss:
+                highest_imae_loss = imae_loss
+
+            if irmse_loss > highest_irmse_loss:
+                highest_irmse_loss = irmse_loss
+            
+            print("Current sample:{}, L1 loss:{:.4f}, MSE loss:{:.4f}, RMSE loss:{:.4f}, iMAE loss:{:.4f}, iRMSE loss:{:.4f}".format(i, loss.item(), mse_loss.item(), rmse_loss.item(), imae_loss.item(), irmse_loss.item()))
+
+        avg_l1_loss /= len(self.our_images)
+        avg_mse_loss /= len(self.our_images)
+        avg_rmse_loss /= len(self.our_images)
+        avg_imae_loss /= len(self.our_images)
+        avg_irmse_loss /= len(self.our_images)
+
+        # Print overall losses
+        print('Loss for curr samples:')
+        print("Total samples:{}, Avg L1 loss:{:.4f}, Highest L1 loss:{:.4f}".format(len(self.our_images), avg_l1_loss, highest_l1_loss))
+        print("Total samples:{}, Avg MSE loss:{:.4f}, Highest MSE loss:{:.4f}".format(len(self.our_images), avg_mse_loss, highest_mse_loss))
+        print("Total samples:{}, Avg RMSE loss:{:.4f}, Highest RMSE loss:{:.4f}".format(len(self.our_images), avg_rmse_loss, highest_rmse_loss))
+        print("Total samples:{}, Avg iMAE loss:{:.4f}, Highest iMAE loss:{:.4f}".format(len(self.our_images), avg_imae_loss, highest_imae_loss))
+        print("Total samples:{}, Avg iRMSE loss:{:.4f}, Highest iRMSE loss:{:.4f}".format(len(self.our_images), avg_irmse_loss, highest_irmse_loss))
+
+        return avg_l1_loss, highest_l1_loss, avg_mse_loss, highest_mse_loss, avg_rmse_loss, highest_rmse_loss, avg_imae_loss, highest_imae_loss, avg_irmse_loss, highest_irmse_loss
     
     def load_depth_from_binary(self, file_path):
         """

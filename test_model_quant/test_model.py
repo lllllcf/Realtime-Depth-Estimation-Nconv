@@ -11,11 +11,12 @@ import cv2
 import torch.nn.functional as F
 import time
 import copy
+import os
 from scipy.ndimage import median_filter
 from models.without_step1.step1 import SETP1_NCONV as step_1
 
 #Modify this
-checkpoint_path = "Test"
+checkpoint_path = "baseline2"
 output_folder = "ours"
 
 test_dataset = TEST_DataLoader_NYU('/oscar/data/jtompki1/cli277/new_spot_data', '1')
@@ -104,4 +105,23 @@ for batch, data in enumerate(test_loader):
 
 bin_path = "./{}/{}/".format(output_folder, checkpoint_path)
 eval = Evaluator(bin_path)
-eval.calculate_loss()
+avg_l1_loss, highest_l1_loss, avg_mse_loss, highest_mse_loss, avg_rmse_loss, highest_rmse_loss, avg_imae_loss, highest_imae_loss, avg_irmse_loss, highest_irmse_loss = eval.calculate_loss()
+
+model_name = f"{checkpoint_path}_losses.txt"
+
+# Prepare the loss data as a string
+loss_data = f"""
+Model: {checkpoint_path}
+Avg L1 loss: {avg_l1_loss:.4f}, Highest L1 loss: {highest_l1_loss:.4f}
+Avg MSE loss: {avg_mse_loss:.4f}, Highest MSE loss: {highest_mse_loss:.4f}
+Avg RMSE loss: {avg_rmse_loss:.4f}, Highest RMSE loss: {highest_rmse_loss:.4f}
+Avg iMAE loss: {avg_imae_loss:.4f}, Highest iMAE loss: {highest_imae_loss:.4f}
+Avg iRMSE loss: {avg_irmse_loss:.4f}, Highest iRMSE loss: {highest_irmse_loss:.4f}
+"""
+
+# Save the losses to a text file in the root folder
+file_path = os.path.join(".", model_name)  # Saves to the root folder
+with open(file_path, "w") as file:
+    file.write(loss_data)
+
+print(f"Loss data saved to: {file_path}")

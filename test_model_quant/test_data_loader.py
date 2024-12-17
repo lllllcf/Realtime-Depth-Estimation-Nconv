@@ -122,6 +122,8 @@ class TEST_DataLoader_NYU(Dataset):
                         f'File {file_path} contains {len(float_data)} float values, expected {expected_size}.'
                     )
 
+                
+
                 # Reshape to 2D depth map
                 depth_map = float_data.reshape((self.height, self.width))
                 return depth_map
