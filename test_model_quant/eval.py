@@ -48,7 +48,7 @@ class Evaluator():
                 plt.savefig(our_image_path)
                 plt.close()
 
-                # Load, crop, and save "gt images"
+                #needs cropping to match BP_Export output
                 self.gt_images.append(self.crop_image(self.load_depth_from_binary(self.gt_depth_list[i])))
                 plt.imshow(self.gt_images[-1])
                 gt_image_path = os.path.join(self.output_dir, f"gt_image_{i}.png")
@@ -79,6 +79,10 @@ class Evaluator():
         avg_imae_loss = 0
         highest_imae_loss = 0
 
+        #TODO: Remove Outliers
+        #TODO: Convert units to mm
+
+        #TODO: Change how you are applying masks.
 
 
         for i in range(len(self.our_images)):
